@@ -13,6 +13,11 @@ class Report extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function assignee()
+    {
+        return $this->belongsTo(User::class, 'assignee_id');
+    }
+
     public function evidences()
     {
         return $this->hasMany(ReportEvidence::class);
