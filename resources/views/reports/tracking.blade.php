@@ -33,6 +33,34 @@
         </form>
     </div>
 
+    @if(session('error'))
+    <div class="rounded-xl bg-red-50 border border-red-200 p-4 mb-8">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-red-700">{{ session('error') }}</p>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    @if($errors->any())
+    <div class="rounded-xl bg-red-50 border border-red-200 p-4 mb-8">
+        <div class="flex flex-col gap-2">
+            <p class="text-sm font-medium text-red-700">Periksa kembali isian Anda:</p>
+            <ul class="flex flex-col gap-1">
+                @foreach ($errors->all() as $error)
+                    <li class="text-sm text-red-700">{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    </div>
+    @endif
+
     @if(session('success'))
     <div class="rounded-xl bg-green-50 border border-green-200 p-4 mb-8">
         <div class="flex">
@@ -64,6 +92,10 @@
             </div>
         </div>
     @elseif($report)
+        @php
+            $statusLabel = $statusDisplay['label'] ?? (string) $report->status;
+            $statusClasses = $statusDisplay['classes'] ?? 'bg-gray-50 text-gray-600 border-gray-200';
+        @endphp
         <!-- Report Detail -->
         <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <div class="px-6 py-5 sm:px-8 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50">
@@ -76,16 +108,14 @@
                     </p>
                 </div>
                 <span class="px-4 py-1.5 inline-flex text-sm font-semibold rounded-full border 
-                    {{ $report->status == 'SUBMITTED' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : '' }}
-                    {{ $report->status == 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' : '' }}
-                    {{ $report->status == 'RESOLVED' ? 'bg-green-50 text-green-700 border-green-200' : '' }}
+                    {{ $statusClasses }}
                 ">
-                    {{ $report->status }}
+                    {{ $statusLabel }}
                 </span>
             </div>
             
             <div class="px-6 py-6 sm:px-8">
-                <dl class="space-y-6">
+                <dl class="flex flex-col gap-6">
                     <div class="group">
                         <dt class="text-sm font-medium text-gray-500 mb-1">Judul Laporan</dt>
                         <dd class="text-lg text-gray-900 font-medium group-hover:text-green-600 transition-colors">{{ $report->title }}</dd>
@@ -109,7 +139,9 @@
                                 <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
-                                {{ $report->phone }}
+                                <span>{{ $report->user?->name ?? 'Warga' }}</span>
+                                <span class="text-sm text-gray-500">•</span>
+                                <span>{{ $report->user?->phone ?? '-' }}</span>
                             </dd>
                         </div>
                     </div>
@@ -121,22 +153,220 @@
                         </dd>
                     </div>
 
-                    @if($report->evidence)
-                    <div>
-                        <dt class="text-sm font-medium text-gray-500 mb-3">Foto Bukti</dt>
-                        <dd>
-                            <div class="relative group rounded-xl overflow-hidden border border-gray-200 max-w-md">
-                                <img src="{{ asset('storage/' . $report->evidence) }}" alt="Bukti Laporan" class="w-full h-64 object-cover transform group-hover:scale-105 transition-transform duration-500">
-                                <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                                    <span class="text-white text-sm font-medium">Klik untuk memperbesar</span>
+                    @if($canRevise)
+                        <div>
+                            <dt class="text-sm font-medium text-gray-500 mb-3">Perbaiki Laporan</dt>
+                            <dd>
+                                <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-4 flex flex-col gap-4">
+                                    <div class="flex flex-col gap-2">
+                                        <p class="text-sm text-amber-700">
+                                            Laporan Anda perlu perbaikan sebelum diverifikasi ulang.
+                                        </p>
+                                        @if($revisionNote)
+                                            <p class="text-sm text-amber-700">
+                                                Catatan petugas: {{ $revisionNote }}
+                                            </p>
+                                        @endif
+                                    </div>
+
+                                    <form action="{{ route('report.tracking.revision') }}" method="POST" enctype="multipart/form-data" class="flex flex-col gap-4">
+                                        @csrf
+                                        <input type="hidden" name="ticket" value="{{ $report->ticket_number }}">
+
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div class="md:col-span-2">
+                                                <label for="revision-description" class="text-sm font-medium text-gray-700">Detail Laporan</label>
+                                                <textarea name="description" id="revision-description" rows="4"
+                                                    class="mt-1.5 flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition-all font-medium resize-none"
+                                                    placeholder="Tambahkan detail yang kurang">{{ old('description', $report->description) }}</textarea>
+                                            </div>
+
+                                            <div>
+                                                <label for="revision-location" class="text-sm font-medium text-gray-700">Lokasi Kejadian</label>
+                                                <input type="text" name="location_name" id="revision-location"
+                                                    value="{{ old('location_name', $report->location_name) }}"
+                                                    class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition-all font-medium"
+                                                    placeholder="Nama jalan atau patokan">
+                                            </div>
+
+                                            <div>
+                                                <label for="revision-notes" class="text-sm font-medium text-gray-700">Catatan untuk Petugas</label>
+                                                <textarea name="notes" id="revision-notes" rows="2"
+                                                    class="mt-1.5 flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition-all font-medium resize-none"
+                                                    placeholder="Jelaskan perbaikan yang Anda kirim">{{ old('notes') }}</textarea>
+                                            </div>
+                                        </div>
+
+                                        <div class="rounded-lg border border-gray-200 bg-white p-3 flex flex-col gap-3">
+                                            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                                <div>
+                                                    <p class="text-sm font-medium text-gray-700">Lokasi GPS (Opsional)</p>
+                                                    <p class="text-xs text-gray-500">Klik tombol untuk mengisi koordinat otomatis.</p>
+                                                </div>
+                                                <button type="button" id="revision-gps-button" class="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                                                    Ambil Lokasi GPS
+                                                </button>
+                                            </div>
+                                            <p id="revision-gps-status" class="text-xs text-gray-500">Isi manual jika diperlukan.</p>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label for="revision-latitude" class="text-sm font-medium text-gray-700">Latitude</label>
+                                                <input type="number" name="latitude" id="revision-latitude" step="any"
+                                                    value="{{ old('latitude', $report->latitude) }}"
+                                                    class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition-all font-medium"
+                                                    placeholder="-6.200000">
+                                            </div>
+
+                                            <div>
+                                                <label for="revision-longitude" class="text-sm font-medium text-gray-700">Longitude</label>
+                                                <input type="number" name="longitude" id="revision-longitude" step="any"
+                                                    value="{{ old('longitude', $report->longitude) }}"
+                                                    class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition-all font-medium"
+                                                    placeholder="106.800000">
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label for="revision-evidence" class="text-sm font-medium text-gray-700">Bukti Tambahan (Opsional)</label>
+                                            <input type="file" name="evidence" id="revision-evidence" accept="image/*"
+                                                class="mt-1.5 block w-full text-sm text-gray-600 file:mr-4 file:rounded-md file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700">
+                                        </div>
+
+                                        <div class="flex items-center justify-end gap-3">
+                                            <button type="submit" class="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-700 transition-colors">
+                                                Kirim Perbaikan
+                                            </button>
+                                        </div>
+                                    </form>
                                 </div>
-                            </div>
+                            </dd>
+                        </div>
+                    @endif
+
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500 mb-3">Bukti Laporan</dt>
+                        <dd>
+                            @if(count($evidenceItems))
+                                <div class="grid gap-4 sm:grid-cols-2">
+                                    @foreach ($evidenceItems as $evidence)
+                                        <a href="{{ $evidence['url'] }}" target="_blank" rel="noopener" class="block rounded-xl border border-gray-200 overflow-hidden bg-white hover:shadow-sm transition-shadow">
+                                            @if($evidence['is_image'])
+                                                <div class="relative h-48 bg-gray-100">
+                                                    <img src="{{ $evidence['url'] }}" alt="{{ $evidence['name'] }}" class="h-full w-full object-cover">
+                                                </div>
+                                            @endif
+                                            <div class="flex flex-col gap-2 p-4">
+                                                <div class="flex items-center justify-between gap-2">
+                                                    <span class="text-sm font-semibold text-gray-900 truncate">
+                                                        {{ $evidence['name'] }}
+                                                    </span>
+                                                    <span class="text-xs rounded-full border px-2 py-0.5 {{ $evidence['type'] === 'IMAGE' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200' }}">
+                                                        {{ $evidence['type'] }}
+                                                    </span>
+                                                </div>
+                                                <span class="text-xs text-gray-500">
+                                                    {{ $evidence['created_at'] }}
+                                                </span>
+                                            </div>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="text-sm text-gray-500">Belum ada bukti yang diunggah.</p>
+                            @endif
                         </dd>
                     </div>
-                    @endif
+
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500 mb-3">Riwayat Status</dt>
+                        <dd>
+                            @if(count($timeline))
+                                <div class="flex flex-col gap-4">
+                                    @foreach ($timeline as $item)
+                                        <div class="flex gap-4">
+                                            <div class="mt-2 h-2.5 w-2.5 rounded-full bg-green-500"></div>
+                                            <div class="flex-1 rounded-xl border border-gray-200 bg-white p-4">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <p class="text-sm font-semibold text-gray-900">
+                                                        {{ $item['title'] }}
+                                                    </p>
+                                                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full border {{ $item['badge_classes'] }}">
+                                                        {{ $item['badge'] }}
+                                                    </span>
+                                                </div>
+                                                <p class="mt-2 text-sm text-gray-600">
+                                                    {{ $item['description'] }}
+                                                </p>
+                                                <p class="mt-2 text-xs text-gray-500">
+                                                    {{ $item['actor'] }} • {{ $item['created_at'] }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="text-sm text-gray-500">Belum ada aktivitas untuk laporan ini.</p>
+                            @endif
+                        </dd>
+                    </div>
                 </dl>
             </div>
         </div>
     @endif
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const button = document.getElementById('revision-gps-button');
+        const status = document.getElementById('revision-gps-status');
+        const latitudeInput = document.getElementById('revision-latitude');
+        const longitudeInput = document.getElementById('revision-longitude');
+
+        if (!button || !status || !latitudeInput || !longitudeInput) {
+            return;
+        }
+
+        const setStatus = (message, tone) => {
+            const baseClass = 'text-xs';
+            const colorClass = tone === 'error'
+                ? 'text-red-600'
+                : tone === 'success'
+                    ? 'text-green-600'
+                    : 'text-gray-500';
+
+            status.textContent = message;
+            status.className = `${baseClass} ${colorClass}`;
+        };
+
+        button.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                setStatus('GPS tidak tersedia di browser ini.', 'error');
+                return;
+            }
+
+            button.disabled = true;
+            setStatus('Mengambil lokasi GPS...', 'info');
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    latitudeInput.value = position.coords.latitude.toFixed(6);
+                    longitudeInput.value = position.coords.longitude.toFixed(6);
+                    button.disabled = false;
+                    setStatus('Lokasi GPS terisi.', 'success');
+                },
+                () => {
+                    button.disabled = false;
+                    setStatus('Gagal mengambil lokasi GPS. Pastikan izin lokasi aktif.', 'error');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0,
+                }
+            );
+        });
+    });
+</script>
 @endsection

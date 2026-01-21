@@ -2,22 +2,19 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use App\Enums\Role;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
-
-    public function canAccessPanel(Panel $panel): bool
-    {
-        return in_array($this->role, ['admin', 'operator', 'pimpinan', 'petugas']);
-    }
 
     /**
      * The attributes that are mass assignable.
@@ -43,7 +40,7 @@ class User extends Authenticatable implements FilamentUser
     ];
 
     /**
-     * Get the attributes that should be cast.
+     * Get attributes that should be cast.
      *
      * @return array<string, string>
      */
@@ -52,6 +49,27 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => Role::class,
         ];
+    }
+
+    public function reportsCreated(): HasMany
+    {
+        return $this->hasMany(Report::class);
+    }
+
+    public function reportsAssigned(): HasMany
+    {
+        return $this->hasMany(Report::class, 'assignee_id');
+    }
+
+    public function histories(): HasMany
+    {
+        return $this->hasMany(ReportHistory::class);
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return in_array($this->role, [Role::ADMIN, Role::OPERATOR, Role::PIMPINAN], true);
     }
 }

@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ReportStatus;
 use App\Models\BotSession;
 use App\Services\FonnteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
-use Mockery;
 
 class FonnteWebhookTest extends TestCase
 {
@@ -15,7 +15,7 @@ class FonnteWebhookTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Mock FonnteService agar tidak hit API beneran saat test
         $this->mock(FonnteService::class, function ($mock) {
             $mock->shouldReceive('sendText')->andReturn(['status' => true]);
@@ -28,16 +28,16 @@ class FonnteWebhookTest extends TestCase
         $payload = [
             'sender' => '628123456789',
             'message' => 'LAPOR',
-            'name' => 'Pak Budi'
+            'name' => 'Pak Budi',
         ];
 
         $response = $this->postJson(route('webhook.fonnte'), $payload);
 
         $response->assertStatus(200);
-        
+
         $this->assertDatabaseHas('bot_sessions', [
             'phone_number' => '628123456789',
-            'state' => 'WAITING_REPORT_DESC'
+            'state' => 'WAITING_REPORT_DESC',
         ]);
     }
 
@@ -47,7 +47,7 @@ class FonnteWebhookTest extends TestCase
         BotSession::create([
             'phone_number' => '628123456789',
             'state' => 'WAITING_REPORT_DESC',
-            'last_interaction_at' => now()
+            'last_interaction_at' => now(),
         ]);
 
         $payload = [
@@ -70,14 +70,14 @@ class FonnteWebhookTest extends TestCase
             'phone_number' => '628123456789',
             'state' => 'WAITING_REPORT_PHOTO',
             'temp_data' => ['description' => 'Sampah'],
-            'last_interaction_at' => now()
+            'last_interaction_at' => now(),
         ]);
 
         // Fonnte mengirim URL file di parameter 'file'
         $payload = [
             'sender' => '628123456789',
             'message' => 'Ini fotonya',
-            'file' => 'https://fonnte.com/storage/image.jpg'
+            'file' => 'https://fonnte.com/storage/image.jpg',
         ];
 
         $this->postJson(route('webhook.fonnte'), $payload);
@@ -98,16 +98,16 @@ class FonnteWebhookTest extends TestCase
             'state' => 'WAITING_REPORT_LOCATION',
             'temp_data' => [
                 'description' => 'Sampah',
-                'photo_url' => 'https://img.com'
+                'photo_url' => 'https://img.com',
             ],
-            'last_interaction_at' => now()
+            'last_interaction_at' => now(),
         ]);
 
         // Simulasi share location (Fonnte kirim lat,long di message atau location)
         $payload = [
             'sender' => '628123456789',
             'message' => '-6.200000, 106.816666', // Format lat,long
-            'location' => '-6.200000, 106.816666'
+            'location' => '-6.200000, 106.816666',
         ];
 
         $this->postJson(route('webhook.fonnte'), $payload);
@@ -117,13 +117,13 @@ class FonnteWebhookTest extends TestCase
             'description' => 'Sampah',
             'latitude' => -6.200000,
             'longitude' => 106.816666,
-            'status' => 'SUBMITTED'
+            'status' => ReportStatus::SUBMITTED->value,
         ]);
-        
+
         // Session reset
         $this->assertDatabaseHas('bot_sessions', [
             'phone_number' => '628123456789',
-            'state' => 'IDLE'
+            'state' => 'IDLE',
         ]);
     }
 }

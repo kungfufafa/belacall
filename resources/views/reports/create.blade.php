@@ -8,21 +8,21 @@
             <p class="text-gray-600 mt-2">Silakan isi formulir di bawah ini dengan lengkap.</p>
         </div>
 
-        <form action="{{ route('report.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <form action="{{ route('report.store') }}" method="POST" enctype="multipart/form-data" class="flex flex-col gap-6">
             @csrf
 
             <!-- Judul -->
             <div>
-                <label for="judul" class="text-sm font-medium text-gray-700">Judul Laporan</label>
-                <input type="text" name="judul" id="judul" 
+                <label for="title" class="text-sm font-medium text-gray-700">Judul Laporan</label>
+                <input type="text" name="title" id="title" 
                     class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
                     placeholder="Apa yang ingin Anda laporkan?" required>
             </div>
 
             <!-- Isi Laporan -->
             <div>
-                <label for="isi" class="text-sm font-medium text-gray-700">Detail Laporan</label>
-                <textarea name="isi" id="isi" rows="5" 
+                <label for="description" class="text-sm font-medium text-gray-700">Detail Laporan</label>
+                <textarea name="description" id="description" rows="5" 
                     class="mt-1.5 flex w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium resize-none"
                     placeholder="Jelaskan detail kejadian secara lengkap..." required></textarea>
             </div>
@@ -46,12 +46,42 @@
                 </div>
             </div>
 
+            <div class="rounded-xl border border-gray-200 bg-gray-50/50 p-4 flex flex-col gap-4">
+                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-700">Lokasi GPS (Opsional)</p>
+                        <p class="text-xs text-gray-500">Klik tombol untuk mengisi latitude dan longitude otomatis.</p>
+                    </div>
+                    <button type="button" id="gps-button" class="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                        Ambil Lokasi GPS
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="latitude" class="text-sm font-medium text-gray-700">Latitude</label>
+                        <input type="number" name="latitude" id="latitude" step="any"
+                            class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
+                            placeholder="-6.200000">
+                    </div>
+
+                    <div>
+                        <label for="longitude" class="text-sm font-medium text-gray-700">Longitude</label>
+                        <input type="number" name="longitude" id="longitude" step="any"
+                            class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
+                            placeholder="106.800000">
+                    </div>
+                </div>
+
+                <p id="gps-status" class="text-xs text-gray-500">Isi manual jika diperlukan.</p>
+            </div>
+
             <!-- Bukti Foto -->
             <div>
                 <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto (Opsional)</label>
                 <div class="mt-1.5 flex justify-center rounded-md border border-dashed border-gray-900/25 px-6 py-10 transition-colors hover:bg-gray-50/50">
                     <div class="text-center relative">
-                     <input id="evidence" name="evidence" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required>
+                     <input id="evidence" name="evidence" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                     <div class="space-y-1 text-center">
                         <svg class="mx-auto h-12 w-12 text-gray-400 group-hover:text-green-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                             <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -78,4 +108,57 @@
         </form>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const button = document.getElementById('gps-button');
+        const status = document.getElementById('gps-status');
+        const latitudeInput = document.getElementById('latitude');
+        const longitudeInput = document.getElementById('longitude');
+
+        if (!button || !status || !latitudeInput || !longitudeInput) {
+            return;
+        }
+
+        const setStatus = (message, tone) => {
+            const baseClass = 'text-xs';
+            const colorClass = tone === 'error'
+                ? 'text-red-600'
+                : tone === 'success'
+                    ? 'text-green-600'
+                    : 'text-gray-500';
+
+            status.textContent = message;
+            status.className = `${baseClass} ${colorClass}`;
+        };
+
+        button.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                setStatus('GPS tidak tersedia di browser ini.', 'error');
+                return;
+            }
+
+            button.disabled = true;
+            setStatus('Mengambil lokasi GPS...', 'info');
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    latitudeInput.value = position.coords.latitude.toFixed(6);
+                    longitudeInput.value = position.coords.longitude.toFixed(6);
+                    button.disabled = false;
+                    setStatus('Lokasi GPS terisi.', 'success');
+                },
+                () => {
+                    button.disabled = false;
+                    setStatus('Gagal mengambil lokasi GPS. Pastikan izin lokasi aktif.', 'error');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0,
+                }
+            );
+        });
+    });
+</script>
 @endsection

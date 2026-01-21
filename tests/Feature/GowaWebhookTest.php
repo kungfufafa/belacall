@@ -2,13 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ReportStatus;
 use App\Models\BotSession;
 use App\Models\Report;
 use App\Services\GowaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
-use Mockery;
 
 class GowaWebhookTest extends TestCase
 {
@@ -17,7 +16,7 @@ class GowaWebhookTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Mock GowaService agar tidak hit API beneran saat test
         $this->mock(GowaService::class, function ($mock) {
             $mock->shouldReceive('sendText')->andReturn(true);
@@ -32,18 +31,18 @@ class GowaWebhookTest extends TestCase
             'payload' => [
                 'from' => '628123456789@s.whatsapp.net',
                 'body' => 'LAPOR',
-                'type' => 'text'
-            ]
+                'type' => 'text',
+            ],
         ];
 
         $response = $this->postJson(route('webhook.gowa'), $payload);
 
         $response->assertStatus(200);
-        
+
         // Cek session terbuat
         $this->assertDatabaseHas('bot_sessions', [
             'phone_number' => '628123456789',
-            'state' => 'WAITING_REPORT_DESC' // Sesuai logic shortcut di controller
+            'state' => 'WAITING_REPORT_DESC', // Sesuai logic shortcut di controller
         ]);
     }
 
@@ -54,7 +53,7 @@ class GowaWebhookTest extends TestCase
         BotSession::create([
             'phone_number' => '628123456789',
             'state' => 'WAITING_REPORT_DESC',
-            'last_interaction_at' => now()
+            'last_interaction_at' => now(),
         ]);
 
         $payload = [
@@ -62,8 +61,8 @@ class GowaWebhookTest extends TestCase
             'payload' => [
                 'from' => '628123456789@s.whatsapp.net',
                 'body' => 'Jalan berlubang di depan pasar',
-                'type' => 'text'
-            ]
+                'type' => 'text',
+            ],
         ];
 
         $this->postJson(route('webhook.gowa'), $payload);
@@ -72,7 +71,7 @@ class GowaWebhookTest extends TestCase
             'phone_number' => '628123456789',
             'state' => 'WAITING_REPORT_PHOTO',
         ]);
-        
+
         // Cek data sementara tersimpan
         $session = BotSession::where('phone_number', '628123456789')->first();
         $this->assertEquals('Jalan berlubang di depan pasar', $session->temp_data['description']);
@@ -85,7 +84,7 @@ class GowaWebhookTest extends TestCase
             'phone_number' => '628123456789',
             'state' => 'WAITING_REPORT_PHOTO',
             'temp_data' => ['description' => 'Jalan rusak'],
-            'last_interaction_at' => now()
+            'last_interaction_at' => now(),
         ]);
 
         $payload = [
@@ -94,8 +93,8 @@ class GowaWebhookTest extends TestCase
                 'from' => '628123456789@s.whatsapp.net',
                 'body' => '',
                 'type' => 'image',
-                'url' => 'https://example.com/image.jpg'
-            ]
+                'url' => 'https://example.com/image.jpg',
+            ],
         ];
 
         $this->postJson(route('webhook.gowa'), $payload);
@@ -116,9 +115,9 @@ class GowaWebhookTest extends TestCase
             'state' => 'WAITING_REPORT_LOCATION',
             'temp_data' => [
                 'description' => 'Jalan rusak',
-                'photo_url' => 'https://example.com/image.jpg'
+                'photo_url' => 'https://example.com/image.jpg',
             ],
-            'last_interaction_at' => now()
+            'last_interaction_at' => now(),
         ]);
 
         $payload = [
@@ -126,8 +125,8 @@ class GowaWebhookTest extends TestCase
             'payload' => [
                 'from' => '628123456789@s.whatsapp.net',
                 'body' => 'Desa Sukamaju RT 01',
-                'type' => 'text'
-            ]
+                'type' => 'text',
+            ],
         ];
 
         $this->postJson(route('webhook.gowa'), $payload);
@@ -136,25 +135,25 @@ class GowaWebhookTest extends TestCase
         $this->assertDatabaseHas('reports', [
             'description' => 'Jalan rusak',
             'location_name' => 'Desa Sukamaju RT 01',
-            'status' => 'SUBMITTED'
+            'status' => ReportStatus::SUBMITTED->value,
         ]);
 
         // 2. Cek Bukti Terbuat
         $this->assertDatabaseHas('report_evidences', [
-            'file_path' => 'https://example.com/image.jpg'
+            'file_path' => 'https://example.com/image.jpg',
         ]);
 
         // 3. Cek User Warga Terbuat Otomatis
         $this->assertDatabaseHas('users', [
             'phone' => '628123456789',
-            'role' => 'warga'
+            'role' => 'warga',
         ]);
 
         // 4. Cek Session Reset
         $this->assertDatabaseHas('bot_sessions', [
             'phone_number' => '628123456789',
             'state' => 'IDLE',
-            'temp_data' => null // json null disimpan sebagai string "null" atau null di sqlite
+            'temp_data' => null, // json null disimpan sebagai string "null" atau null di sqlite
         ]);
     }
 }

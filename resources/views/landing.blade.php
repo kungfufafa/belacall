@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="relative isolate overflow-hidden bg-white -mt-24 pt-24">
+<div class="relative isolate overflow-hidden bg-white -mt-24 pt-24 -mb-12">
     <!-- Hero Section -->
     <div class="px-6 py-24 sm:px-6 sm:py-32 lg:px-8">
         <div class="mx-auto max-w-2xl text-center">

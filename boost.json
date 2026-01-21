@@ -1,0 +1,16 @@
+{
+    "agents": [
+        "codex",
+        "copilot",
+        "opencode"
+    ],
+    "editors": [
+        "codex",
+        "opencode",
+        "vscode"
+    ],
+    "guidelines": [
+        "filament/filament"
+    ],
+    "herd_mcp": true
+}
