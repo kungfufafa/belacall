@@ -36,7 +36,7 @@ class UserSeeder extends Seeder
                 'name' => 'Mbak Siti (Operator)',
                 'password' => Hash::make('password'),
                 'role' => 'operator',
-                'phone' => '08120000002',
+                'phone' => '628120000002',
             ]
         );
 
@@ -47,7 +47,7 @@ class UserSeeder extends Seeder
                 'name' => 'Pak Darto (Operator)',
                 'password' => Hash::make('password'),
                 'role' => 'operator',
-                'phone' => '08120000003',
+                'phone' => '628120000003',
             ]
         );
 
@@ -58,7 +58,7 @@ class UserSeeder extends Seeder
                 'name' => 'Pak Lurah Joko',
                 'password' => Hash::make('password'),
                 'role' => 'pimpinan',
-                'phone' => '08130000003',
+                'phone' => '628130000003',
             ]
         );
 
