@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Enums\Role;
+use App\Filament\Pages\DashboardAdmin;
 use App\Filament\Pages\DashboardOperator;
 use App\Filament\Pages\DashboardPimpinan;
 use App\Filament\Resources\Reports\ReportResource;
@@ -40,7 +41,7 @@ class AdminPanelAccessTest extends TestCase
 
         $this->actingAs($user)
             ->get('/admin')
-            ->assertRedirect(DashboardOperator::getUrl());
+            ->assertRedirect(DashboardAdmin::getUrl());
     }
 
     public function test_warga_cannot_access_admin_panel(): void

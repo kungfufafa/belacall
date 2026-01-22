@@ -25,7 +25,7 @@ class DashboardOperator extends Page
             return false;
         }
 
-        return in_array($user->role, [Role::ADMIN, Role::OPERATOR], true);
+        return $user->role === Role::OPERATOR;
     }
 
     protected function getViewData(): array
@@ -125,38 +125,12 @@ class DashboardOperator extends Page
             'ticket' => $report->ticket_number,
             'title' => $report->title ?: 'Tanpa judul',
             'location' => $report->location_name ?: 'Lokasi belum diisi',
-            'status_label' => $this->statusLabel($status),
-            'status_color' => $this->statusColor($status),
+            'status_label' => $status->label(),
+            'status_color' => $status->color(),
             'created_at' => $report->created_at?->format('d M Y H:i') ?? '-',
             'assignee' => $report->assignee?->name ?? 'Belum ditugaskan',
             'reporter' => $report->user?->name ?? 'Warga',
             'url' => ReportResource::getUrl('view', ['record' => $report]),
         ];
-    }
-
-    private function statusLabel(ReportStatus $status): string
-    {
-        return match ($status) {
-            ReportStatus::SUBMITTED => 'Masuk',
-            ReportStatus::VERIFIED => 'Terverifikasi',
-            ReportStatus::IN_PROGRESS => 'Diproses',
-            ReportStatus::RESOLVED => 'Selesai',
-            ReportStatus::CLOSED => 'Ditutup',
-            ReportStatus::REJECTED => 'Ditolak',
-            ReportStatus::NEEDS_REVISION => 'Perlu Revisi',
-        };
-    }
-
-    private function statusColor(ReportStatus $status): string
-    {
-        return match ($status) {
-            ReportStatus::SUBMITTED => 'warning',
-            ReportStatus::VERIFIED => 'primary',
-            ReportStatus::IN_PROGRESS => 'warning',
-            ReportStatus::RESOLVED => 'success',
-            ReportStatus::CLOSED => 'gray',
-            ReportStatus::REJECTED => 'danger',
-            ReportStatus::NEEDS_REVISION => 'warning',
-        };
     }
 }

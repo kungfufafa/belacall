@@ -2,9 +2,13 @@
 
 namespace App\Filament\Resources\Reports;
 
+use App\Enums\ReportStatus;
 use App\Enums\Role;
+use App\Filament\Resources\Reports\Schemas\ReportForm;
 use App\Filament\Resources\Reports\Schemas\ReportInfolist;
+use App\Filament\Resources\Reports\Tables\ReportsTable;
 use App\Models\Report;
+use App\Models\User;
 use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Resources\Resource;
@@ -21,7 +25,7 @@ class ReportResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        return \App\Filament\Schemas\Reports::configure($schema);
+        return ReportForm::configure($schema);
     }
 
     public static function infolist(Schema $schema): Schema
@@ -49,7 +53,7 @@ class ReportResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return \App\Filament\Tables\Reports::configure($table);
+        return ReportsTable::configure($table);
     }
 
     public static function getRelations(): array
@@ -57,6 +61,35 @@ class ReportResource extends Resource
         return [
             //
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function operatorOptionsWithLoad(): array
+    {
+        return User::query()
+            ->where('role', Role::OPERATOR)
+            ->withCount([
+                'reportsAssigned as in_progress_count' => fn ($query) => $query
+                    ->where('status', ReportStatus::IN_PROGRESS->value),
+            ])
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(function (User $user): array {
+                $count = (int) ($user->in_progress_count ?? 0);
+                $label = sprintf('%s (%d tugas)', $user->name, $count);
+
+                return [$user->id => $label];
+            })
+            ->all();
+    }
+
+    public static function canBulkAssign(): bool
+    {
+        $user = Filament::auth()->user();
+
+        return $user && in_array($user->role, [Role::ADMIN, Role::PIMPINAN], true);
     }
 
     public static function getPages(): array

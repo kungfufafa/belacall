@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Enums\Role;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -25,13 +27,23 @@ class UsersTable
                     ->searchable(),
                 TextColumn::make('role')
                     ->label('Peran')
-                    ->badge(),
+                    ->badge()
+                    ->color(fn (Role $state): string => match ($state) {
+                        Role::ADMIN => 'danger',
+                        Role::PIMPINAN => 'primary',
+                        Role::OPERATOR => 'warning',
+                        Role::WARGA => 'gray',
+                    }),
             ])
             ->filters([
                 //
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->modal()
+                    ->slideOver()
+                    ->color('warning')
+                    ->modalWidth(Width::Medium),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

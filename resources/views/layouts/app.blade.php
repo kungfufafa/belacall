@@ -30,7 +30,7 @@
                 <div class="flex-shrink-0 flex items-center gap-2">
                     <a href="{{ route('home') }}" class="flex items-center gap-2 group">
                         <div class="size-8 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                             <img src="{{ asset('icon_belacall.png') }}" alt="Logo" class="w-6 h-6 object-contain">
+                             <img src="{{ asset('icon.png') }}" alt="Logo" class="w-6 h-6 object-contain">
                         </div>
                         <span class="text-xl font-bold text-gray-900 tracking-tight">
                             BELACALL

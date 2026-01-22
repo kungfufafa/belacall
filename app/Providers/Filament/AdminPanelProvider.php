@@ -3,6 +3,8 @@
 namespace App\Providers\Filament;
 
 use App\Enums\Role;
+use App\Filament\Pages\Auth\Login;
+use App\Filament\Pages\DashboardAdmin;
 use App\Filament\Pages\DashboardOperator;
 use App\Filament\Pages\DashboardPimpinan;
 use Filament\Facades\Filament;
@@ -31,7 +33,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->viteTheme('resources/css/filament/admin/theme.css')
-            ->login()
+            ->login(Login::class)
             ->homeUrl(function (): ?string {
                 $user = Filament::auth()->user();
 
@@ -40,20 +42,28 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 return match ($user->role) {
+                    Role::ADMIN => DashboardAdmin::getUrl(),
                     Role::PIMPINAN => DashboardPimpinan::getUrl(),
-                    Role::OPERATOR, Role::ADMIN => DashboardOperator::getUrl(),
+                    Role::OPERATOR => DashboardOperator::getUrl(),
                     default => null,
                 };
             })
             ->colors([
                 'primary' => Color::Green,
+                'secondary' => Color::Gray,
+                'success' => Color::Blue,
+                'warning' => Color::Yellow,
+                'danger' => Color::Red,
+                'info' => Color::Purple,
             ])
             ->font('Instrument Sans', provider: GoogleFontProvider::class)
+            ->favicon(asset('favicon.ico'))
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->pages([
+                DashboardAdmin::class,
                 DashboardOperator::class,
                 DashboardPimpinan::class,
             ])
@@ -74,6 +84,7 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+            ->databaseNotifications()
             ->viteTheme('resources/css/filament/admin/theme.css');
     }
 }

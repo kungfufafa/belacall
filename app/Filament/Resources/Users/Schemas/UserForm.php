@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Users\Schemas;
 
 use App\Enums\Role;
+use App\Models\User;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class UserForm
@@ -28,21 +30,24 @@ class UserForm
                             ->tel()
                             ->required()
                             ->maxLength(20)
-                            ->unique(),
+                            ->unique()
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (?string $state, Set $set): void {
+                                $set('phone', User::normalizePhoneNumber($state));
+                            })
+                            ->dehydrateStateUsing(fn (?string $state): ?string => User::normalizePhoneNumber($state)),
                         Select::make('role')
                             ->options(Role::class)
                             ->required()
                             ->default(Role::WARGA),
-                    ])
-                    ->columns(2),
+                    ]),
                 Section::make('Keamanan')
                     ->schema([
                         TextInput::make('password')
                             ->password()
                             ->revealable()
                             ->required(fn (string $operation): bool => $operation === 'create'),
-                    ])
-                    ->columns(1),
-            ]);
+                    ]),
+            ])->columns(1);
     }
 }

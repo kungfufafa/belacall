@@ -4,10 +4,9 @@ namespace App\Filament\Resources\Reports\Pages;
 
 use App\Enums\ReportCategory;
 use App\Enums\ReportStatus;
-use App\Enums\Role;
 use App\Filament\Resources\Reports\ReportResource;
 use App\Models\ReportHistory;
-use App\Models\User;
+use App\Notifications\ReportAssigned;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Facades\Filament;
@@ -27,15 +26,12 @@ class ViewReport extends ViewRecord
         return [
             Action::make('assignOperator')
                 ->label('Assign Operator')
+                ->color('info')
                 ->visible(fn (): bool => $this->canAssign())
                 ->form([
                     Select::make('assignee_id')
                         ->label('Operator')
-                        ->options(fn (): array => User::query()
-                            ->where('role', Role::OPERATOR)
-                            ->orderBy('name')
-                            ->pluck('name', 'id')
-                            ->all())
+                        ->options(fn (): array => ReportResource::operatorOptionsWithLoad())
                         ->searchable()
                         ->preload()
                         ->required(),
@@ -62,9 +58,14 @@ class ViewReport extends ViewRecord
                         'new_value' => $record->assignee?->name,
                         'notes' => $data['notes'] ?? null,
                     ]);
+
+                    if ($record->assignee) {
+                        $record->assignee->notify(new ReportAssigned($record, Filament::auth()->user()));
+                    }
                 }),
             Action::make('followUp')
                 ->label('Tindak Lanjut')
+                ->color('secondary')
                 ->visible(fn (): bool => $this->canFollowUp())
                 ->form([
                     Select::make('status')
@@ -131,7 +132,8 @@ class ViewReport extends ViewRecord
                         ]);
                     }
                 }),
-            EditAction::make(),
+            EditAction::make()
+                ->color('warning'),
         ];
     }
 

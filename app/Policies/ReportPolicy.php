@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\ReportStatus;
 use App\Enums\Role;
 use App\Models\Report;
 use App\Models\User;
@@ -46,6 +47,18 @@ class ReportPolicy
 
     public function assign(User $user, Report $report): bool
     {
+        $status = $report->status instanceof ReportStatus
+            ? $report->status->value
+            : (string) $report->status;
+
+        if (in_array($status, [
+            ReportStatus::RESOLVED->value,
+            ReportStatus::CLOSED->value,
+            ReportStatus::REJECTED->value,
+        ], true)) {
+            return false;
+        }
+
         return in_array($user->role, [Role::ADMIN, Role::PIMPINAN], true);
     }
 
