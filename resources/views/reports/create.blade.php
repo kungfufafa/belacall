@@ -79,20 +79,51 @@
             <!-- Bukti Foto -->
             <div>
                 <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto (Opsional)</label>
-                <div class="mt-1.5 flex justify-center rounded-md border border-dashed border-gray-900/25 px-6 py-10 transition-colors hover:bg-gray-50/50">
-                    <div class="text-center relative">
-                     <input id="evidence" name="evidence" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                    <div class="space-y-1 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400 group-hover:text-green-500 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                        <div class="text-sm text-gray-600">
-                            <span class="font-medium text-green-600">Upload file</span>
-                            <span class="pl-1">atau drag and drop</span>
+                <div id="upload-zone" class="mt-1.5 flex justify-center rounded-xl border-2 border-dashed border-gray-300 px-6 py-8 transition-all hover:bg-green-50/50 hover:border-green-400 cursor-pointer">
+                    <div class="text-center relative w-full">
+                        <input id="evidence" name="evidence" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        
+                        <!-- Preview Container (hidden by default) -->
+                        <div id="preview-container" class="hidden">
+                            <div class="relative inline-block">
+                                <img id="image-preview" src="" alt="Preview" class="max-h-48 rounded-lg shadow-md mx-auto">
+                                <button type="button" id="remove-image" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-md z-20">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <p id="file-name" class="mt-3 text-sm font-medium text-green-600"></p>
+                            <p class="text-xs text-gray-500 mt-1">Klik untuk mengganti foto</p>
                         </div>
-                        <p class="text-xs text-gray-500">
-                            PNG, JPG hingga 5MB
-                        </p>
+                        
+                        <!-- Upload Placeholder (shown by default) -->
+                        <div id="upload-placeholder" class="space-y-3">
+                            <!-- Photo Icon -->
+                            <div class="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                            </div>
+                            
+                            <div>
+                                <p class="text-sm text-gray-700">
+                                    <span class="font-semibold text-green-600 hover:text-green-700">Klik untuk upload</span>
+                                    <span class="text-gray-500"> atau drag & drop</span>
+                                </p>
+                                <p class="text-xs text-gray-400 mt-1">
+                                    PNG, JPG, JPEG (Maks. 5MB)
+                                </p>
+                            </div>
+                            
+                            <!-- Example hint -->
+                            <div class="flex items-center justify-center gap-2 text-xs text-gray-400 pt-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>Foto membantu mempercepat proses penanganan</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -111,54 +142,119 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        // GPS functionality
         const button = document.getElementById('gps-button');
         const status = document.getElementById('gps-status');
         const latitudeInput = document.getElementById('latitude');
         const longitudeInput = document.getElementById('longitude');
 
-        if (!button || !status || !latitudeInput || !longitudeInput) {
-            return;
+        if (button && status && latitudeInput && longitudeInput) {
+            const setStatus = (message, tone) => {
+                const baseClass = 'text-xs';
+                const colorClass = tone === 'error'
+                    ? 'text-red-600'
+                    : tone === 'success'
+                        ? 'text-green-600'
+                        : 'text-gray-500';
+
+                status.textContent = message;
+                status.className = `${baseClass} ${colorClass}`;
+            };
+
+            button.addEventListener('click', () => {
+                if (!navigator.geolocation) {
+                    setStatus('GPS tidak tersedia di browser ini.', 'error');
+                    return;
+                }
+
+                button.disabled = true;
+                setStatus('Mengambil lokasi GPS...', 'info');
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        latitudeInput.value = position.coords.latitude.toFixed(6);
+                        longitudeInput.value = position.coords.longitude.toFixed(6);
+                        button.disabled = false;
+                        setStatus('Lokasi GPS terisi.', 'success');
+                    },
+                    () => {
+                        button.disabled = false;
+                        setStatus('Gagal mengambil lokasi GPS. Pastikan izin lokasi aktif.', 'error');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0,
+                    }
+                );
+            });
         }
 
-        const setStatus = (message, tone) => {
-            const baseClass = 'text-xs';
-            const colorClass = tone === 'error'
-                ? 'text-red-600'
-                : tone === 'success'
-                    ? 'text-green-600'
-                    : 'text-gray-500';
+        // Image preview functionality
+        const fileInput = document.getElementById('evidence');
+        const uploadZone = document.getElementById('upload-zone');
+        const previewContainer = document.getElementById('preview-container');
+        const uploadPlaceholder = document.getElementById('upload-placeholder');
+        const imagePreview = document.getElementById('image-preview');
+        const fileName = document.getElementById('file-name');
+        const removeButton = document.getElementById('remove-image');
 
-            status.textContent = message;
-            status.className = `${baseClass} ${colorClass}`;
-        };
-
-        button.addEventListener('click', () => {
-            if (!navigator.geolocation) {
-                setStatus('GPS tidak tersedia di browser ini.', 'error');
-                return;
-            }
-
-            button.disabled = true;
-            setStatus('Mengambil lokasi GPS...', 'info');
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    latitudeInput.value = position.coords.latitude.toFixed(6);
-                    longitudeInput.value = position.coords.longitude.toFixed(6);
-                    button.disabled = false;
-                    setStatus('Lokasi GPS terisi.', 'success');
-                },
-                () => {
-                    button.disabled = false;
-                    setStatus('Gagal mengambil lokasi GPS. Pastikan izin lokasi aktif.', 'error');
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0,
+        if (fileInput && uploadZone && previewContainer && uploadPlaceholder && imagePreview && fileName && removeButton) {
+            const showPreview = (file) => {
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        imagePreview.src = e.target.result;
+                        fileName.textContent = file.name;
+                        previewContainer.classList.remove('hidden');
+                        uploadPlaceholder.classList.add('hidden');
+                        uploadZone.classList.add('border-green-400', 'bg-green-50/50');
+                    };
+                    reader.readAsDataURL(file);
                 }
-            );
-        });
+            };
+
+            const hidePreview = () => {
+                imagePreview.src = '';
+                fileName.textContent = '';
+                previewContainer.classList.add('hidden');
+                uploadPlaceholder.classList.remove('hidden');
+                uploadZone.classList.remove('border-green-400', 'bg-green-50/50');
+                fileInput.value = '';
+            };
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                showPreview(file);
+            });
+
+            removeButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                hidePreview();
+            });
+
+            // Drag and drop visual feedback
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('border-green-500', 'bg-green-100/50');
+            });
+
+            uploadZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('border-green-500', 'bg-green-100/50');
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('border-green-500', 'bg-green-100/50');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    fileInput.files = e.dataTransfer.files;
+                    showPreview(file);
+                }
+            });
+        }
     });
 </script>
 @endsection
