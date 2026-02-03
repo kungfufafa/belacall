@@ -180,28 +180,6 @@ class FonnteWebhookController extends Controller
         // Selesai, kembali ke IDLE
         $session->update(['state' => 'IDLE', 'temp_data' => null]);
     }
-        }
-
-        if ($lat && $long) {
-            // Update Report Terakhir
-            $reportId = $session->temp_data['report_id'] ?? null;
-            if ($reportId) {
-                $report = Report::find($reportId);
-                if ($report) {
-                    $report->update([
-                        'latitude' => $lat,
-                        'longitude' => $long,
-                        'location_name' => "Koordinat: $lat, $long (".$report->location_name.')',
-                    ]);
-
-                    $this->fonnteService->sendText($waId, "📍 *Lokasi Diupdate!*\nTerima kasih, data lokasi presisi telah ditambahkan ke laporan #{$report->ticket_number}.");
-                }
-            }
-        }
-
-        // Selesai, kembali ke IDLE
-        $session->update(['state' => 'IDLE', 'temp_data' => null]);
-    }
 
     private function handleDirectFormSubmission($sender, array $data)
     {
