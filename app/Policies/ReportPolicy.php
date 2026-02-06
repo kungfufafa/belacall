@@ -64,6 +64,14 @@ class ReportPolicy
 
     public function followUp(User $user, Report $report): bool
     {
+        $status = $report->status instanceof ReportStatus
+            ? $report->status
+            : ReportStatus::tryFrom((string) $report->status);
+
+        if ($status?->isFinal()) {
+            return $this->isAdmin($user);
+        }
+
         if ($this->isAdmin($user)) {
             return true;
         }

@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Reports\Schemas;
 
-use App\Enums\ReportCategory;
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Models\ReportEvidence;
 use Filament\Infolists\Components\ImageEntry;
@@ -128,10 +128,10 @@ class ReportInfolist
                             ->schema([
                                 Section::make('Status & Penugasan')
                                     ->schema([
-                                        TextEntry::make('category')
-                                            ->label('Kategori')
+                                        TextEntry::make('priority')
+                                            ->label('Prioritas')
                                             ->badge()
-                                            ->color(fn (ReportCategory $state): string => self::categoryColor($state)),
+                                            ->color(fn (ReportPriority $state): string => self::priorityColor($state)),
                                         TextEntry::make('status')
                                             ->label('Status')
                                             ->badge()
@@ -176,15 +176,13 @@ class ReportInfolist
         };
     }
 
-    private static function categoryColor(ReportCategory $category): string
+    private static function priorityColor(ReportPriority $priority): string
     {
-        return match ($category) {
-            ReportCategory::GENERAL => 'gray',
-            ReportCategory::INFRASTRUKTUR => 'primary',
-            ReportCategory::SAMPAH => 'warning',
-            ReportCategory::KEAMANAN => 'danger',
-            ReportCategory::PELAYANAN => 'info',
-            ReportCategory::LAINNYA => 'gray',
+        return match ($priority) {
+            ReportPriority::URGENT => 'danger',
+            ReportPriority::HIGH => 'warning',
+            ReportPriority::MEDIUM => 'info',
+            ReportPriority::LOW => 'gray',
         };
     }
 

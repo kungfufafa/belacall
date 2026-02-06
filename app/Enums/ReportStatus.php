@@ -37,4 +37,33 @@ enum ReportStatus: string
             self::NEEDS_REVISION => 'warning',
         };
     }
+
+    public function isFinal(): bool
+    {
+        return in_array($this, [self::CLOSED, self::REJECTED], true);
+    }
+
+    public function canTransitionTo(self $target): bool
+    {
+        if ($this === $target) {
+            return true;
+        }
+
+        return in_array($target, $this->allowedTransitions(), true);
+    }
+
+    /**
+     * @return array<int, self>
+     */
+    private function allowedTransitions(): array
+    {
+        return match ($this) {
+            self::SUBMITTED => [self::VERIFIED, self::NEEDS_REVISION, self::REJECTED],
+            self::VERIFIED => [self::IN_PROGRESS, self::NEEDS_REVISION, self::REJECTED],
+            self::IN_PROGRESS => [self::RESOLVED, self::NEEDS_REVISION],
+            self::RESOLVED => [self::CLOSED, self::IN_PROGRESS],
+            self::NEEDS_REVISION => [self::SUBMITTED, self::REJECTED],
+            self::CLOSED, self::REJECTED => [],
+        };
+    }
 }

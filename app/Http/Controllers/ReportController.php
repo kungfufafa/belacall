@@ -36,30 +36,30 @@ class ReportController extends Controller
             // 1. Cari/Buat User Warga berdasarkan No HP
             // Format HP ke 628xxx biar seragam dgn WA
             $phone = $this->formatPhone($request->phone);
-            
+
             $user = User::firstOrCreate(
                 ['phone' => $phone],
-                ['name' => 'Warga ' . substr($phone, -4), 'role' => 'warga']
+                ['name' => 'Warga '.substr($phone, -4), 'role' => 'warga']
             );
 
             // 2. Simpan Laporan
             $report = Report::create([
-                'ticket_number' => 'T-' . now()->format('YmdHi') . rand(10,99),
+                'ticket_number' => Report::generateTicketNumber(),
                 'user_id' => $user->id,
-                'title' => substr($request->description, 0, 50) . '...',
+                'title' => substr($request->description, 0, 50).'...',
                 'description' => $request->description,
                 'location_name' => $request->location_name,
                 'status' => 'SUBMITTED',
-                'category' => 'Web Report'
+                'priority' => 'Medium',
             ]);
 
             // 3. Upload Foto
             if ($request->hasFile('photo')) {
                 $path = $request->file('photo')->store('evidences', 'public');
-                
+
                 $report->evidences()->create([
                     'file_path' => Storage::url($path),
-                    'file_type' => 'image'
+                    'file_type' => 'image',
                 ]);
             }
 
@@ -69,13 +69,15 @@ class ReportController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Gagal mengirim laporan: ' . $e->getMessage())->withInput();
+
+            return back()->with('error', 'Gagal mengirim laporan: '.$e->getMessage())->withInput();
         }
     }
 
     public function success($ticket)
     {
         $report = Report::where('ticket_number', $ticket)->firstOrFail();
+
         return view('reports.success', compact('report'));
     }
 
@@ -83,8 +85,9 @@ class ReportController extends Controller
     {
         $phone = preg_replace('/[^0-9]/', '', $phone);
         if (str_starts_with($phone, '08')) {
-            $phone = '62' . substr($phone, 1);
+            $phone = '62'.substr($phone, 1);
         }
+
         return $phone;
     }
 }

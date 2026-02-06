@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Reports\Schemas;
 
-use App\Enums\ReportCategory;
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Models\Report;
 use Filament\Forms\Components\Select;
@@ -58,11 +58,11 @@ class ReportForm
                             ->schema([
                                 Section::make('Status & Penugasan')
                                     ->schema([
-                                        Select::make('category')
-                                            ->label('Kategori')
-                                            ->options(ReportCategory::class)
+                                        Select::make('priority')
+                                            ->label('Prioritas')
+                                            ->options(ReportPriority::class)
                                             ->required()
-                                            ->disabled(fn (?Report $record): bool => $record && self::isCategoryLocked($record->status)),
+                                            ->disabled(fn (?Report $record): bool => $record && self::isPriorityLocked($record->status)),
                                         Select::make('status')
                                             ->label('Status')
                                             ->options(ReportStatus::class)
@@ -83,7 +83,7 @@ class ReportForm
             ]);
     }
 
-    private static function isCategoryLocked(mixed $status): bool
+    private static function isPriorityLocked(mixed $status): bool
     {
         $value = $status instanceof ReportStatus ? $status->value : (string) $status;
 

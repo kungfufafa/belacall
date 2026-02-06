@@ -37,6 +37,13 @@ return [
 
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),
+        'webhook_token' => env('FONNTE_WEBHOOK_TOKEN'),
+        'allow_insecure_webhook' => env('FONNTE_ALLOW_INSECURE_WEBHOOK', false),
+        'session_timeout_minutes' => (int) env('FONNTE_SESSION_TIMEOUT_MINUTES', 30),
+        'rate_limit_per_minute' => (int) env('FONNTE_WEBHOOK_RATE_PER_MINUTE', 40),
+        'global_rate_limit_per_minute' => (int) env('FONNTE_WEBHOOK_GLOBAL_RATE_PER_MINUTE', 1200),
+        'webhook_lock_seconds' => (int) env('FONNTE_WEBHOOK_LOCK_SECONDS', 30),
+        'webhook_wait_seconds' => (int) env('FONNTE_WEBHOOK_WAIT_SECONDS', 20),
     ],
 
 ];

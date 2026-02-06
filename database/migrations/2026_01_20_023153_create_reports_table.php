@@ -16,7 +16,7 @@ return new class extends Migration
 
             $table->string('title')->nullable();
             $table->text('description')->nullable();
-            $table->string('category')->default('General'); // Infrastruktur, Sampah, dll
+            $table->string('priority')->default('Medium'); // Urgent, High, Medium, Low
 
             $table->string('location_name')->nullable();
             $table->decimal('latitude', 10, 8)->nullable();

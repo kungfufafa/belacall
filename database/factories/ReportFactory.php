@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Enums\ReportCategory;
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Enums\Role;
 use App\Models\User;
@@ -26,7 +26,7 @@ class ReportFactory extends Factory
             'assignee_id' => null,
             'title' => fake()->sentence(4),
             'description' => fake()->paragraph(),
-            'category' => ReportCategory::GENERAL,
+            'priority' => ReportPriority::MEDIUM,
             'location_name' => fake()->city(),
             'latitude' => fake()->latitude(),
             'longitude' => fake()->longitude(),

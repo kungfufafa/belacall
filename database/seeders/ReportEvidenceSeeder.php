@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Enums\ReportCategory;
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Models\Report;
 use App\Models\ReportEvidence;
@@ -66,7 +66,7 @@ class ReportEvidenceSeeder extends Seeder
             );
         }
 
-        if ($report->category === ReportCategory::PELAYANAN) {
+        if (in_array($report->priority, [ReportPriority::HIGH, ReportPriority::URGENT], true)) {
             ReportEvidence::firstOrCreate(
                 ['report_id' => $report->id, 'file_path' => "reports/{$ticketNumber}/dokumen_pendukung.pdf"],
                 [

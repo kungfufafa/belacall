@@ -55,7 +55,7 @@ class AdminPanelAccessTest extends TestCase
 
     public function test_resource_icons_are_set(): void
     {
-        $this->assertSame(Heroicon::OutlinedDocumentText, ReportResource::getNavigationIcon());
+        $this->assertSame(Heroicon::OutlinedClipboardDocumentList, ReportResource::getNavigationIcon());
         $this->assertSame(Heroicon::OutlinedUsers, UserResource::getNavigationIcon());
     }
 }

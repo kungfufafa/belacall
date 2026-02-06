@@ -42,7 +42,7 @@ class FonnteInteractiveFlowTest extends TestCase
 
         $this->assertDatabaseHas('bot_sessions', [
             'phone_number' => $sender,
-            'state' => 'WAITING_LOCATION',
+            'state' => 'WAITING_LOCATION_OPTION',
         ]);
 
         $session = BotSession::where('phone_number', $sender)->first();
@@ -50,7 +50,7 @@ class FonnteInteractiveFlowTest extends TestCase
 
         $response = $this->postJson('/webhook/fonnte', [
             'sender' => $sender,
-            'message' => 'Desa Sukamaju RT 01',
+            'message' => '2',
         ]);
 
         $this->assertDatabaseHas('bot_sessions', [
@@ -59,7 +59,8 @@ class FonnteInteractiveFlowTest extends TestCase
         ]);
 
         $session->refresh();
-        $this->assertEquals('Desa Sukamaju RT 01', $session->temp_data['location']);
+        $this->assertArrayNotHasKey('latitude', $session->temp_data);
+        $this->assertArrayNotHasKey('longitude', $session->temp_data);
 
         $response = $this->postJson('/webhook/fonnte', [
             'sender' => $sender,
@@ -73,7 +74,7 @@ class FonnteInteractiveFlowTest extends TestCase
 
         $this->assertDatabaseHas('reports', [
             'title' => 'Jalan Rusak Parah',
-            'location_name' => 'Desa Sukamaju RT 01',
+            'location_name' => null,
             'description' => 'Lubang besar di tengah jalan, sudah 2 motor jatuh.',
             'status' => 'SUBMITTED',
         ]);
@@ -91,7 +92,8 @@ class FonnteInteractiveFlowTest extends TestCase
         $this->assertDatabaseHas('bot_sessions', ['state' => 'WAITING_TITLE']);
 
         $session = BotSession::where('phone_number', $sender)->first();
-        $this->assertNull($session->temp_data);
+        $this->assertIsArray($session->temp_data);
+        $this->assertArrayHasKey('session_started_at', $session->temp_data);
     }
 
     public function test_cancel_flow()

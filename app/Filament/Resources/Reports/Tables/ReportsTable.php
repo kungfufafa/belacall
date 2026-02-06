@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Reports\Tables;
 
-use App\Enums\ReportCategory;
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Filament\Resources\Reports\ReportResource;
 use App\Models\Report;
@@ -38,16 +38,14 @@ class ReportsTable
                     ->label('Deskripsi')
                     ->limit(100)
                     ->toggleable(),
-                TextColumn::make('category')
-                    ->label('Kategori')
+                TextColumn::make('priority')
+                    ->label('Prioritas')
                     ->badge()
-                    ->color(fn (ReportCategory $state): string => match ($state) {
-                        ReportCategory::GENERAL => 'gray',
-                        ReportCategory::INFRASTRUKTUR => 'primary',
-                        ReportCategory::SAMPAH => 'warning',
-                        ReportCategory::KEAMANAN => 'danger',
-                        ReportCategory::PELAYANAN => 'info',
-                        ReportCategory::LAINNYA => 'gray',
+                    ->color(fn (ReportPriority $state): string => match ($state) {
+                        ReportPriority::URGENT => 'danger',
+                        ReportPriority::HIGH => 'warning',
+                        ReportPriority::MEDIUM => 'info',
+                        ReportPriority::LOW => 'gray',
                     }),
                 TextColumn::make('location_name')
                     ->label('Lokasi')
@@ -73,9 +71,9 @@ class ReportsTable
                 SelectFilter::make('status')
                     ->label('Status')
                     ->options(ReportStatus::class),
-                SelectFilter::make('category')
-                    ->label('Kategori')
-                    ->options(ReportCategory::class),
+                SelectFilter::make('priority')
+                    ->label('Prioritas')
+                    ->options(ReportPriority::class),
             ])
             ->checkIfRecordIsSelectableUsing(fn (Report $record): bool => Gate::allows('assign', $record))
             ->toolbarActions([
@@ -90,6 +88,10 @@ class ReportsTable
                                 ->options(fn (): array => ReportResource::operatorOptionsWithLoad())
                                 ->searchable()
                                 ->preload()
+                                ->required(),
+                            Select::make('priority')
+                                ->label('Prioritas')
+                                ->options(ReportPriority::class)
                                 ->required(),
                             Textarea::make('notes')
                                 ->label('Catatan')
@@ -107,10 +109,27 @@ class ReportsTable
                                 ->filter(fn (Report $record): bool => Gate::forUser($actor)->allows('assign', $record))
                                 ->each(function (Report $record) use ($assignee, $actor, $data): void {
                                     $oldAssignee = $record->assignee?->name;
+                                    $oldPriority = $record->priority instanceof ReportPriority
+                                        ? $record->priority->value
+                                        : (string) $record->priority;
+                                    $oldStatus = $record->status instanceof ReportStatus
+                                        ? $record->status->value
+                                        : (string) $record->status;
+                                    $status = $record->status instanceof ReportStatus
+                                        ? $record->status
+                                        : ReportStatus::tryFrom((string) $record->status);
 
-                                    $record->update([
+                                    $updates = [
                                         'assignee_id' => $assignee->id,
-                                    ]);
+                                        'priority' => $data['priority'],
+                                    ];
+
+                                    if ($status && in_array($status, [ReportStatus::SUBMITTED, ReportStatus::NEEDS_REVISION], true)) {
+                                        $updates['status'] = ReportStatus::VERIFIED->value;
+                                    }
+
+                                    $record->update($updates);
+                                    $record->refresh();
 
                                     ReportHistory::create([
                                         'report_id' => $record->id,
@@ -120,6 +139,28 @@ class ReportsTable
                                         'new_value' => $assignee->name,
                                         'notes' => $data['notes'] ?? null,
                                     ]);
+
+                                    if ($oldPriority !== $data['priority']) {
+                                        ReportHistory::create([
+                                            'report_id' => $record->id,
+                                            'user_id' => $actor->id,
+                                            'action' => 'PRIORITY_CHANGE',
+                                            'old_value' => $oldPriority,
+                                            'new_value' => $data['priority'],
+                                            'notes' => 'Prioritas ditetapkan saat penugasan massal.',
+                                        ]);
+                                    }
+
+                                    if (($updates['status'] ?? null) === ReportStatus::VERIFIED->value && $oldStatus !== ReportStatus::VERIFIED->value) {
+                                        ReportHistory::create([
+                                            'report_id' => $record->id,
+                                            'user_id' => $actor->id,
+                                            'action' => 'STATUS_CHANGE',
+                                            'old_value' => $oldStatus,
+                                            'new_value' => ReportStatus::VERIFIED->value,
+                                            'notes' => 'Laporan diverifikasi saat penugasan oleh pimpinan.',
+                                        ]);
+                                    }
 
                                     $assignee->notify(new ReportAssigned($record, $actor));
                                 });

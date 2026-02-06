@@ -2,8 +2,9 @@
 
 namespace App\Filament\Resources\Reports\Pages;
 
-use App\Enums\ReportCategory;
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
+use App\Enums\Role;
 use App\Filament\Resources\Reports\ReportResource;
 use App\Models\ReportHistory;
 use App\Notifications\ReportAssigned;
@@ -14,8 +15,8 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Resources\Pages\ViewRecord;
-use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class ViewReport extends ViewRecord
 {
@@ -35,6 +36,10 @@ class ViewReport extends ViewRecord
                         ->searchable()
                         ->preload()
                         ->required(),
+                    Select::make('priority')
+                        ->label('Prioritas')
+                        ->options(ReportPriority::class)
+                        ->required(),
                     Textarea::make('notes')
                         ->label('Catatan')
                         ->rows(3),
@@ -45,8 +50,27 @@ class ViewReport extends ViewRecord
                     Gate::authorize('assign', $record);
 
                     $oldAssignee = $record->assignee?->name;
-                    $record->update([
+                    $oldPriority = $record->priority instanceof ReportPriority
+                        ? $record->priority->value
+                        : (string) $record->priority;
+                    $oldStatus = $record->status instanceof ReportStatus
+                        ? $record->status->value
+                        : (string) $record->status;
+                    $status = $record->status instanceof ReportStatus
+                        ? $record->status
+                        : ReportStatus::tryFrom((string) $record->status);
+
+                    $updates = [
                         'assignee_id' => $data['assignee_id'],
+                        'priority' => $data['priority'],
+                    ];
+
+                    if ($status && in_array($status, [ReportStatus::SUBMITTED, ReportStatus::NEEDS_REVISION], true)) {
+                        $updates['status'] = ReportStatus::VERIFIED->value;
+                    }
+
+                    $record->update([
+                        ...$updates,
                     ]);
                     $record->refresh();
 
@@ -59,6 +83,28 @@ class ViewReport extends ViewRecord
                         'notes' => $data['notes'] ?? null,
                     ]);
 
+                    if ($oldPriority !== $data['priority']) {
+                        ReportHistory::create([
+                            'report_id' => $record->id,
+                            'user_id' => Filament::auth()->user()?->id,
+                            'action' => 'PRIORITY_CHANGE',
+                            'old_value' => $oldPriority,
+                            'new_value' => $data['priority'],
+                            'notes' => 'Prioritas ditetapkan saat penugasan.',
+                        ]);
+                    }
+
+                    if (($updates['status'] ?? null) === ReportStatus::VERIFIED->value && $oldStatus !== ReportStatus::VERIFIED->value) {
+                        ReportHistory::create([
+                            'report_id' => $record->id,
+                            'user_id' => Filament::auth()->user()?->id,
+                            'action' => 'STATUS_CHANGE',
+                            'old_value' => $oldStatus,
+                            'new_value' => ReportStatus::VERIFIED->value,
+                            'notes' => 'Laporan diverifikasi saat penugasan oleh pimpinan.',
+                        ]);
+                    }
+
                     if ($record->assignee) {
                         $record->assignee->notify(new ReportAssigned($record, Filament::auth()->user()));
                     }
@@ -66,18 +112,12 @@ class ViewReport extends ViewRecord
             Action::make('followUp')
                 ->label('Tindak Lanjut')
                 ->color('secondary')
-                ->visible(fn (): bool => $this->canFollowUp())
+                ->visible(fn (): bool => $this->canFollowUp() && $this->hasFollowUpStatusOptions())
                 ->form([
                     Select::make('status')
                         ->label('Status')
-                        ->options(ReportStatus::class)
+                        ->options(fn (): array => $this->availableStatusOptions())
                         ->required(),
-                    Select::make('category')
-                        ->label('Kategori')
-                        ->options(ReportCategory::class)
-                        ->visible(fn (): bool => $this->canSetCategory())
-                        ->required(fn (Get $get): bool => $this->canSetCategory()
-                            && $this->requiresCategoryForStatus($get('status'))),
                     Textarea::make('notes')
                         ->label('Catatan')
                         ->rows(3),
@@ -97,25 +137,39 @@ class ViewReport extends ViewRecord
                     $oldStatus = $record->status instanceof ReportStatus
                         ? $record->status->value
                         : (string) $record->status;
+                    $oldStatusEnum = $record->status instanceof ReportStatus
+                        ? $record->status
+                        : ReportStatus::tryFrom((string) $record->status);
+                    $newStatusEnum = ReportStatus::tryFrom((string) $data['status']);
+
+                    if (! $oldStatusEnum || ! $newStatusEnum || ! $oldStatusEnum->canTransitionTo($newStatusEnum)) {
+                        throw ValidationException::withMessages([
+                            'status' => 'Transisi status tidak valid untuk tahap laporan saat ini.',
+                        ]);
+                    }
+
+                    if (! $this->canActorSetStatus($oldStatusEnum, $newStatusEnum)) {
+                        throw ValidationException::withMessages([
+                            'status' => 'Status ini bukan kewenangan Anda.',
+                        ]);
+                    }
 
                     $updates = [
                         'status' => $data['status'],
                     ];
 
-                    if ($this->canSetCategory() && ! empty($data['category'])) {
-                        $updates['category'] = $data['category'];
-                    }
-
                     $record->update($updates);
 
-                    ReportHistory::create([
-                        'report_id' => $record->id,
-                        'user_id' => Filament::auth()->user()?->id,
-                        'action' => 'STATUS_CHANGE',
-                        'old_value' => $oldStatus,
-                        'new_value' => $data['status'],
-                        'notes' => $data['notes'] ?? null,
-                    ]);
+                    if ($oldStatus !== $data['status'] || ! empty($data['notes'])) {
+                        ReportHistory::create([
+                            'report_id' => $record->id,
+                            'user_id' => Filament::auth()->user()?->id,
+                            'action' => 'STATUS_CHANGE',
+                            'old_value' => $oldStatus,
+                            'new_value' => $data['status'],
+                            'notes' => $data['notes'] ?? null,
+                        ]);
+                    }
 
                     if (! empty($data['evidence'])) {
                         $record->evidences()->create([
@@ -151,29 +205,49 @@ class ViewReport extends ViewRecord
         return Gate::allows('followUp', $record);
     }
 
-    private function canSetCategory(): bool
+    private function hasFollowUpStatusOptions(): bool
     {
-        $record = $this->getRecord();
-        $status = $record->status instanceof ReportStatus
-            ? $record->status->value
-            : (string) $record->status;
-
-        return in_array($status, [ReportStatus::SUBMITTED->value, ReportStatus::NEEDS_REVISION->value], true);
+        return $this->availableStatusOptions() !== [];
     }
 
-    private function requiresCategoryForStatus(ReportStatus|string|null $status): bool
+    private function isOperator(): bool
     {
-        if (! $status) {
-            return false;
+        $user = Filament::auth()->user();
+
+        return $user?->role === Role::OPERATOR;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function availableStatusOptions(): array
+    {
+        $currentStatus = $this->getRecord()->status instanceof ReportStatus
+            ? $this->getRecord()->status
+            : ReportStatus::tryFrom((string) $this->getRecord()->status);
+
+        if (! $currentStatus) {
+            return [];
         }
 
-        $value = $status instanceof ReportStatus ? $status->value : (string) $status;
+        return collect(ReportStatus::cases())
+            ->filter(fn (ReportStatus $status): bool => $currentStatus->canTransitionTo($status))
+            ->filter(fn (ReportStatus $status): bool => $this->canActorSetStatus($currentStatus, $status))
+            ->mapWithKeys(fn (ReportStatus $status): array => [$status->value => $status->label()])
+            ->all();
+    }
 
-        return in_array($value, [
-            ReportStatus::VERIFIED->value,
-            ReportStatus::IN_PROGRESS->value,
-            ReportStatus::RESOLVED->value,
-            ReportStatus::CLOSED->value,
-        ], true);
+    private function canActorSetStatus(ReportStatus $from, ReportStatus $to): bool
+    {
+        if (! $this->isOperator()) {
+            return true;
+        }
+
+        return match ($from) {
+            ReportStatus::VERIFIED => in_array($to, [ReportStatus::IN_PROGRESS], true),
+            ReportStatus::IN_PROGRESS => in_array($to, [ReportStatus::RESOLVED], true),
+            ReportStatus::RESOLVED => in_array($to, [ReportStatus::CLOSED, ReportStatus::IN_PROGRESS], true),
+            default => false,
+        };
     }
 }

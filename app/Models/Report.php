@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
-use App\Enums\ReportCategory;
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Report extends Model
 {
@@ -15,10 +16,19 @@ class Report extends Model
 
     protected $guarded = ['id'];
 
+    public static function generateTicketNumber(): string
+    {
+        do {
+            $ticketNumber = 'T-'.now()->format('Ymd').'-'.Str::upper(Str::random(8));
+        } while (self::query()->where('ticket_number', $ticketNumber)->exists());
+
+        return $ticketNumber;
+    }
+
     protected function casts(): array
     {
         return [
-            'category' => ReportCategory::class,
+            'priority' => ReportPriority::class,
             'status' => ReportStatus::class,
         ];
     }

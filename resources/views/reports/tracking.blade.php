@@ -91,7 +91,61 @@
                 </div>
             </div>
         </div>
-    @elseif($report)
+    @elseif($report && !$isTrackingVerified)
+        <div class="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 flex flex-col gap-6">
+            <div class="flex flex-col gap-2">
+                <h3 class="text-xl font-bold text-gray-900">Verifikasi Nomor WhatsApp</h3>
+                <p class="text-sm text-gray-600">
+                    Demi keamanan data warga, detail laporan hanya bisa dilihat setelah verifikasi OTP ke nomor pelapor.
+                </p>
+            </div>
+
+            <form action="{{ route('report.tracking.request_otp') }}" method="POST" class="flex flex-col gap-4">
+                @csrf
+                <input type="hidden" name="ticket" value="{{ $report->ticket_number }}">
+
+                <div>
+                    <label for="tracking-phone" class="text-sm font-medium text-gray-700">Nomor WhatsApp Pelapor</label>
+                    <input type="tel" name="phone" id="tracking-phone" required
+                        value="{{ old('phone', $pendingTrackingPhone) }}"
+                        class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition-all font-medium"
+                        placeholder="Contoh: 08123456789">
+                </div>
+
+                <div class="flex items-center justify-end">
+                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-700 transition-colors">
+                        Kirim OTP
+                    </button>
+                </div>
+            </form>
+
+            @if($pendingTrackingPhone)
+                <form action="{{ route('report.tracking.verify_otp') }}" method="POST" class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                    @csrf
+                    <input type="hidden" name="ticket" value="{{ $report->ticket_number }}">
+                    <input type="hidden" name="phone" value="{{ $pendingTrackingPhone }}">
+
+                    <div class="flex flex-col gap-1">
+                        <p class="text-sm font-medium text-gray-700">Masukkan kode OTP</p>
+                        <p class="text-xs text-gray-500">OTP sudah dikirim ke nomor {{ $pendingTrackingPhone }}.</p>
+                    </div>
+
+                    <div>
+                        <label for="tracking-otp" class="text-sm font-medium text-gray-700">Kode OTP</label>
+                        <input type="text" name="otp" id="tracking-otp" required inputmode="numeric" maxlength="6"
+                            class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 transition-all font-medium"
+                            placeholder="6 digit OTP">
+                    </div>
+
+                    <div class="flex items-center justify-end">
+                        <button type="submit" class="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-700 transition-colors">
+                            Verifikasi OTP
+                        </button>
+                    </div>
+                </form>
+            @endif
+        </div>
+    @elseif($report && $isTrackingVerified)
         @php
             $statusLabel = $statusDisplay['label'] ?? (string) $report->status;
             $statusClasses = $statusDisplay['classes'] ?? 'bg-gray-50 text-gray-600 border-gray-200';
