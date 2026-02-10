@@ -53,6 +53,17 @@ class FonnteService
     private function sendRequest(string $endpoint, array $data): array|bool
     {
         try {
+            if ((bool) config('services.fonnte.fake_mode', false)) {
+                Log::info('Fonnte fake mode enabled, skipping outbound request.', [
+                    'endpoint' => $endpoint,
+                ]);
+
+                return [
+                    'status' => true,
+                    'fake' => true,
+                ];
+            }
+
             if ($this->token === '') {
                 Log::error('Fonnte token is missing.');
 

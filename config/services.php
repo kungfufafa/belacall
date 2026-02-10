@@ -37,6 +37,7 @@ return [
 
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),
+        'fake_mode' => filter_var(env('FONNTE_FAKE_MODE', false), FILTER_VALIDATE_BOOL),
         'webhook_token' => env('FONNTE_WEBHOOK_TOKEN'),
         'allow_insecure_webhook' => env('FONNTE_ALLOW_INSECURE_WEBHOOK', false),
         'session_timeout_minutes' => (int) env('FONNTE_SESSION_TIMEOUT_MINUTES', 30),

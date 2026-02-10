@@ -7,6 +7,69 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Stability Testing (k6)
+
+Project ini sudah punya script load test yang bisa dipakai untuk local, staging, atau production cukup dengan ganti URL target.
+
+### Lokasi Script
+
+- `tests/Load/stability.k6.js`
+- `tests/Load/run-stability.sh`
+
+### Jalankan Cepat
+
+```bash
+# Pastikan local aman (tidak kirim WA ke pihak ketiga)
+# FONNTE_FAKE_MODE=true
+
+# Local (smoke test)
+./tests/Load/run-stability.sh http://127.0.0.1:8000 smoke
+
+# Staging (baseline)
+./tests/Load/run-stability.sh https://staging.example.com baseline
+
+# Production (stress)
+./tests/Load/run-stability.sh https://example.com stress
+```
+
+### Profil Beban
+
+- `smoke`: validasi cepat endpoint utama.
+- `baseline`: simulasi beban normal sebelum launch.
+- `stress`: dorong beban tinggi untuk lihat bottleneck.
+- `soak`: durasi panjang untuk deteksi memory leak/degradasi.
+
+### Contoh Override (Opsional)
+
+```bash
+./tests/Load/run-stability.sh https://staging.example.com baseline \
+  -e WEBHOOK_TOKEN=your_token \
+  -e BASE_PATH=/app \
+  -e HEALTH_RPS=15 \
+  -e REPORT_RPS=6 \
+  -e TRACKING_RPS=4 \
+  -e WEBHOOK_RPS=15 \
+  -e SUMMARY_JSON=/tmp/k6-summary.json
+```
+
+### Env Penting
+
+- `BASE_URL`: domain target test.
+- `K6_PROFILE`: `smoke|baseline|stress|soak`.
+- `WEBHOOK_TOKEN`: token untuk endpoint webhook jika aktif.
+- `FONNTE_FAKE_MODE`: set `true` untuk local agar request ke Fonnte tidak dikirim keluar (aman dari spam/ban).
+- `ENABLE_HEALTH_SCENARIO`, `ENABLE_REPORT_SCENARIO`, `ENABLE_TRACKING_SCENARIO`, `ENABLE_WEBHOOK_SCENARIO`: nyalakan/matikan skenario.
+- `HEALTH_RPS`, `REPORT_RPS`, `TRACKING_RPS`, `WEBHOOK_RPS`: override rate per skenario.
+- `K6_DURATION`, `PREALLOCATED_VUS`, `MAX_VUS`: tuning durasi dan virtual users.
+- `SUMMARY_JSON`: simpan hasil lengkap run ke file JSON.
+
+### Rekomendasi Urutan Uji
+
+1. `smoke` di local/staging.
+2. `baseline` di staging.
+3. `stress` di staging dengan data mirip production.
+4. `soak` sebelum go-live jika waktu memungkinkan.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
