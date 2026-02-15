@@ -13,4 +13,12 @@ class LegalPagesTest extends TestCase
         $response->assertStatus(200);
         $response->assertViewIs('legal.privacy');
     }
+
+    public function test_terms_page_can_be_accessed(): void
+    {
+        $response = $this->get(route('legal.terms'));
+
+        $response->assertStatus(200);
+        $response->assertViewIs('legal.terms');
+    }
 }

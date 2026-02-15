@@ -10,6 +10,7 @@ Route::get('/', [WebReportController::class, 'index'])->name('home');
 
 // Legal Pages
 Route::get('/privacy', [LegalController::class, 'privacy'])->name('legal.privacy');
+Route::get('/terms', [LegalController::class, 'terms'])->name('legal.terms');
 
 // Web Reporting Routes
 Route::get('/lapor', [WebReportController::class, 'create'])->name('report.create');

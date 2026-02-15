@@ -11,4 +11,12 @@ class LegalController extends Controller
     {
         return view('legal.privacy');
     }
+
+    /**
+     * Display the terms of service page.
+     */
+    public function terms()
+    {
+        return view('legal.terms');
+    }
 }
