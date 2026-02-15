@@ -2,10 +2,14 @@
 
 use App\Http\Controllers\Api\TelegramWebhookController;
 use App\Http\Controllers\Auth\MagicLinkLoginController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\WebReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [WebReportController::class, 'index'])->name('home');
+
+// Legal Pages
+Route::get('/privacy', [LegalController::class, 'privacy'])->name('legal.privacy');
 
 // Web Reporting Routes
 Route::get('/lapor', [WebReportController::class, 'create'])->name('report.create');
