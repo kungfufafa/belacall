@@ -21,4 +21,13 @@ class LegalPagesTest extends TestCase
         $response->assertStatus(200);
         $response->assertViewIs('legal.terms');
     }
+
+    public function test_footer_contains_privacy_and_terms_links(): void
+    {
+        $response = $this->get(route('home'));
+
+        $response->assertStatus(200);
+        $response->assertSee(route('legal.privacy'));
+        $response->assertSee(route('legal.terms'));
+    }
 }

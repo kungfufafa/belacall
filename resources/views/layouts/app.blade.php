@@ -71,8 +71,8 @@
         <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <div class=" md:flex md:items-center md:justify-between">
                 <div class="flex justify-center md:justify-start space-x-6 md:order-2">
-                    <span class="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer text-sm">Privacy</span>
-                    <span class="text-gray-500 hover:text-gray-900 transition-colors cursor-pointer text-sm">Terms</span>
+                    <a href="{{ route('legal.privacy') }}" class="text-gray-500 hover:text-gray-900 transition-colors text-sm">Privacy</a>
+                    <a href="{{ route('legal.terms') }}" class="text-gray-500 hover:text-gray-900 transition-colors text-sm">Terms</a>
                 </div>
                 <div class="mt-8 md:mt-0 md:order-1">
                     <p class="text-center text-sm text-gray-500">
