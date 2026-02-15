@@ -23,7 +23,7 @@ class StoreWebReportRequest extends FormRequest
             'location_name' => 'required|string|max:255',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
-            'evidence' => 'nullable|image|max:5120',
+            'evidence' => 'required|image|max:5120',
         ];
     }
 
@@ -46,6 +46,7 @@ class StoreWebReportRequest extends FormRequest
             'latitude.between' => 'Latitude harus antara -90 dan 90.',
             'longitude.numeric' => 'Longitude harus berupa angka.',
             'longitude.between' => 'Longitude harus antara -180 dan 180.',
+            'evidence.required' => 'Bukti foto wajib diunggah.',
             'evidence.image' => 'Bukti foto harus berupa gambar.',
             'evidence.max' => 'Bukti foto maksimal 5MB.',
         ];

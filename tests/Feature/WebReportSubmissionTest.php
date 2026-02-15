@@ -14,7 +14,7 @@ class WebReportSubmissionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_report_submission_allows_optional_evidence_and_gps(): void
+    public function test_report_submission_requires_evidence_and_allows_gps(): void
     {
         Storage::fake('public');
         Http::fake();
@@ -26,6 +26,7 @@ class WebReportSubmissionTest extends TestCase
             'location_name' => 'Jl. Melati',
             'latitude' => -6.201234,
             'longitude' => 106.812345,
+            'evidence' => UploadedFile::fake()->image('bukti.jpg'),
         ];
 
         $response = $this->post('/lapor', $payload);
@@ -45,7 +46,7 @@ class WebReportSubmissionTest extends TestCase
         $this->assertDatabaseHas('users', [
             'phone' => '6281234567890',
         ]);
-        $this->assertDatabaseCount('report_evidences', 0);
+        $this->assertDatabaseCount('report_evidences', 1);
         $response->assertRedirect(route('report.tracking.view', ['ticket' => $report->ticket_number]));
     }
 
@@ -93,6 +94,26 @@ class WebReportSubmissionTest extends TestCase
             'description',
             'phone',
             'location_name',
+            'evidence',
+        ]);
+        $this->assertDatabaseCount('reports', 0);
+    }
+
+    public function test_report_submission_requires_evidence(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        $response = $this->from('/lapor')->post('/lapor', [
+            'title' => 'Kabel listrik jatuh',
+            'description' => 'Ada kabel listrik tergeletak di jalan utama.',
+            'phone' => '081234111222',
+            'location_name' => 'Jl. Kenanga',
+        ]);
+
+        $response->assertRedirect('/lapor');
+        $response->assertSessionHasErrors([
+            'evidence',
         ]);
         $this->assertDatabaseCount('reports', 0);
     }

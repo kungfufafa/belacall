@@ -95,10 +95,10 @@
 
             <!-- Bukti Foto -->
             <div>
-                <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto (Opsional)</label>
+                <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto <span class="text-red-500">*</span></label>
                 <div id="upload-zone" class="mt-1.5 flex justify-center rounded-xl border-2 border-dashed border-gray-300 px-6 py-8 transition-all hover:bg-green-50/50 hover:border-green-400 cursor-pointer">
                     <div class="text-center relative w-full">
-                        <input id="evidence" name="evidence" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        <input id="evidence" name="evidence" type="file" accept="image/*" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                         
                         <!-- Preview Container (hidden by default) -->
                         <div id="preview-container" class="hidden">
@@ -129,7 +129,7 @@
                                     <span class="text-gray-500"> atau drag & drop</span>
                                 </p>
                                 <p class="text-xs text-gray-400 mt-1">
-                                    PNG, JPG, JPEG (Maks. 5MB)
+                                    PNG, JPG, JPEG (Wajib, maks. 5MB)
                                 </p>
                             </div>
                             
