@@ -74,8 +74,22 @@ class ReportExportTest extends TestCase
     public function test_build_summary_data_computes_correct_totals(): void
     {
         Report::factory()->create(['status' => ReportStatus::SUBMITTED, 'priority' => ReportPriority::URGENT]);
-        Report::factory()->create(['status' => ReportStatus::RESOLVED, 'priority' => ReportPriority::HIGH, 'resolved_at' => now()]);
-        Report::factory()->create(['status' => ReportStatus::CLOSED, 'priority' => ReportPriority::LOW, 'resolved_at' => now()->subHours(2)]);
+        Report::factory()->create([
+            'status' => ReportStatus::RESOLVED,
+            'priority' => ReportPriority::HIGH,
+            'responded_at' => now()->subHours(5),
+            'response_deadline' => now()->subHours(4),
+            'resolved_at' => now()->subHours(2),
+            'resolution_deadline' => now()->subHour(),
+        ]);
+        Report::factory()->create([
+            'status' => ReportStatus::CLOSED,
+            'priority' => ReportPriority::LOW,
+            'responded_at' => now()->subHours(2),
+            'response_deadline' => now()->subHours(3),
+            'resolved_at' => now()->subHour(),
+            'resolution_deadline' => now()->subHours(2),
+        ]);
 
         $service = new ReportExportService;
         $reports = $service->getFilteredReports([]);
@@ -84,10 +98,15 @@ class ReportExportTest extends TestCase
         $this->assertSame(3, $summary['total']);
         $this->assertArrayHasKey('by_status', $summary);
         $this->assertArrayHasKey('by_priority', $summary);
+        $this->assertArrayHasKey('response_sla_compliance_rate', $summary);
+        $this->assertArrayHasKey('resolution_sla_compliance_rate', $summary);
         $this->assertArrayHasKey('sla_compliance_rate', $summary);
         $this->assertArrayHasKey('average_resolution_time', $summary);
         $this->assertSame(1, $summary['by_status'][ReportStatus::SUBMITTED->value]);
         $this->assertSame(1, $summary['by_priority'][ReportPriority::URGENT->value]);
+        $this->assertSame(50.0, $summary['response_sla_compliance_rate']);
+        $this->assertSame(50.0, $summary['resolution_sla_compliance_rate']);
+        $this->assertSame($summary['resolution_sla_compliance_rate'], $summary['sla_compliance_rate']);
     }
 
     public function test_pdf_export_returns_success_response(): void

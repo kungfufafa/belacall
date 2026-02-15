@@ -2,9 +2,8 @@
 
 namespace App\Filament\Resources\Reports\Schemas;
 
-use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
-use App\Models\Report;
+use App\Filament\Resources\Reports\ReportResource;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -60,9 +59,11 @@ class ReportForm
                                     ->schema([
                                         Select::make('priority')
                                             ->label('Prioritas')
-                                            ->options(ReportPriority::class)
-                                            ->required()
-                                            ->disabled(fn (?Report $record): bool => $record && self::isPriorityLocked($record->status)),
+                                            ->options(fn (): array => ReportResource::priorityOptionsWithSla())
+                                            ->placeholder('Ditentukan saat assign')
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->helperText('Prioritas ditetapkan saat assign operator oleh Lurah/Pimpinan/Admin.'),
                                         Select::make('status')
                                             ->label('Status')
                                             ->options(ReportStatus::class)
@@ -75,23 +76,14 @@ class ReportForm
                                                 titleAttribute: 'name'
                                             )
                                             ->searchable()
-                                            ->preload(),
+                                            ->preload()
+                                            ->disabled()
+                                            ->dehydrated(false)
+                                            ->helperText('Penugasan operator dilakukan melalui aksi Assign Operator.'),
                                     ]),
                             ]),
                     ])
                     ->columnSpanFull(),
             ]);
-    }
-
-    private static function isPriorityLocked(mixed $status): bool
-    {
-        $value = $status instanceof ReportStatus ? $status->value : (string) $status;
-
-        return in_array($value, [
-            ReportStatus::VERIFIED->value,
-            ReportStatus::IN_PROGRESS->value,
-            ReportStatus::RESOLVED->value,
-            ReportStatus::CLOSED->value,
-        ], true);
     }
 }

@@ -40,7 +40,15 @@ class ReportExportService
 
     /**
      * @param  Collection<int, Report>  $reports
-     * @return array{total: int, by_status: array<string, int>, by_priority: array<string, int>, sla_compliance_rate: float, average_resolution_time: string}
+     * @return array{
+     *     total: int,
+     *     by_status: array<string, int>,
+     *     by_priority: array<string, int>,
+     *     response_sla_compliance_rate: float,
+     *     resolution_sla_compliance_rate: float,
+     *     sla_compliance_rate: float,
+     *     average_resolution_time: string
+     * }
      */
     public function buildSummaryData(Collection $reports): array
     {
@@ -60,6 +68,21 @@ class ReportExportService
             }
         }
 
+        $withoutPriority = $reports->filter(fn (Report $report): bool => $report->priority === null)->count();
+        if ($withoutPriority > 0) {
+            $byPriority['Belum ditetapkan'] = $withoutPriority;
+        }
+
+        $responseEligible = $reports->filter(
+            fn (Report $r): bool => $r->responded_at !== null && $r->response_deadline !== null
+        );
+        $responseCompliant = $responseEligible->filter(
+            fn (Report $r): bool => $r->responded_at->lte($r->response_deadline)
+        );
+        $responseSlaRate = $responseEligible->count() > 0
+            ? round(($responseCompliant->count() / $responseEligible->count()) * 100, 1)
+            : 0.0;
+
         $resolvedOrClosed = $reports->filter(
             fn (Report $r): bool => in_array($r->status, [ReportStatus::RESOLVED, ReportStatus::CLOSED], true)
         );
@@ -72,7 +95,7 @@ class ReportExportService
         $slaCompliant = $slaEligible->filter(
             fn (Report $r): bool => $r->resolved_at->lte($r->resolution_deadline)
         );
-        $slaRate = $slaEligible->count() > 0
+        $resolutionSlaRate = $slaEligible->count() > 0
             ? round(($slaCompliant->count() / $slaEligible->count()) * 100, 1)
             : 0.0;
 
@@ -90,7 +113,9 @@ class ReportExportService
             'total' => $total,
             'by_status' => $byStatus,
             'by_priority' => $byPriority,
-            'sla_compliance_rate' => $slaRate,
+            'response_sla_compliance_rate' => $responseSlaRate,
+            'resolution_sla_compliance_rate' => $resolutionSlaRate,
+            'sla_compliance_rate' => $resolutionSlaRate,
             'average_resolution_time' => $avgResolutionTime,
         ];
     }

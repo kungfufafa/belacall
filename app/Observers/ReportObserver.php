@@ -10,13 +10,22 @@ class ReportObserver
 {
     public function creating(Report $report): void
     {
-        $this->setDeadlines($report);
+        // Do not set deadlines on create - priority is NULL until pimpinan assigns operator
+        // Deadlines will be set when priority is first assigned
     }
 
     public function updating(Report $report): void
     {
-        if ($report->isDirty('priority')) {
-            $this->setDeadlines($report);
+        // Only set deadlines when priority is being set for the first time
+        if ($report->isDirty('priority') && $report->priority !== null) {
+            $oldPriority = $report->getRawOriginal('priority');
+
+            // Only calculate deadlines if this is the first assignment (old priority was NULL)
+            if ($oldPriority === null) {
+                $this->setDeadlines($report);
+            }
+            // If old priority was not NULL, don't recalculate
+            // because priority should not be changed after first assignment
         }
 
         if ($report->isDirty('status')) {
@@ -33,7 +42,8 @@ class ReportObserver
         }
 
         $sla = SlaConfig::forPriority($priority);
-        $from = $report->created_at ?? now();
+        // Calculate deadlines from NOW (assignment time), not from created_at
+        $from = now();
         $deadlines = $sla->computeDeadlines($from);
 
         $report->response_deadline = $deadlines['response_deadline'];
@@ -50,8 +60,8 @@ class ReportObserver
         }
 
         $isFirstResponse = ! $report->responded_at
-            && $oldStatus === ReportStatus::SUBMITTED
-            && $newStatus !== ReportStatus::SUBMITTED;
+            && in_array($newStatus, [ReportStatus::IN_PROGRESS, ReportStatus::RESOLVED, ReportStatus::CLOSED], true)
+            && $oldStatus !== $newStatus;
 
         if ($isFirstResponse) {
             $report->responded_at = now();

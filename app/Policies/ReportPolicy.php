@@ -51,11 +51,7 @@ class ReportPolicy
             ? $report->status->value
             : (string) $report->status;
 
-        if (in_array($status, [
-            ReportStatus::RESOLVED->value,
-            ReportStatus::CLOSED->value,
-            ReportStatus::REJECTED->value,
-        ], true)) {
+        if ($status !== ReportStatus::SUBMITTED->value) {
             return false;
         }
 
@@ -73,6 +69,10 @@ class ReportPolicy
         }
 
         if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        if ($user->role === Role::PIMPINAN) {
             return true;
         }
 

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Http\Requests\StoreWebReportRequest;
 use App\Http\Requests\SubmitReportRevisionRequest;
@@ -61,7 +60,7 @@ class WebReportController extends Controller
             'latitude' => $validated['latitude'] ?? null,
             'longitude' => $validated['longitude'] ?? null,
             'status' => ReportStatus::SUBMITTED->value,
-            'priority' => ReportPriority::MEDIUM->value,
+            // Priority will be set by pimpinan when assigning operator
         ]);
 
         if ($request->hasFile('evidence')) {

@@ -10,12 +10,20 @@ use App\Models\SlaConfig;
 use App\Models\User;
 use Filament\Actions\Action;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 use Tests\TestCase;
 
 class SlaConfigResourceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Cache::flush();
+    }
 
     public function test_admin_can_view_sla_config_list(): void
     {
@@ -122,5 +130,28 @@ class SlaConfigResourceTest extends TestCase
         Livewire::test(ListSlaConfigs::class)
             ->assertTableActionExists('edit', fn (Action $action): bool => $action->isModalSlideOver(), $config)
             ->assertTableActionHasColor('edit', 'warning', $config);
+    }
+
+    public function test_editing_sla_config_invalidates_cached_priority_value(): void
+    {
+        $admin = User::factory()->create(['role' => Role::ADMIN]);
+        $config = SlaConfig::factory()->create([
+            'priority' => ReportPriority::URGENT,
+            'response_time_minutes' => 15,
+            'resolution_time_minutes' => 120,
+        ]);
+
+        $this->assertSame(15, SlaConfig::forPriority(ReportPriority::URGENT)->response_time_minutes);
+
+        $this->actingAs($admin);
+
+        Livewire::test(ListSlaConfigs::class)
+            ->callTableAction('edit', $config, [
+                'response_time_minutes' => 25,
+                'resolution_time_minutes' => 140,
+            ]);
+
+        $this->assertSame(25, SlaConfig::forPriority(ReportPriority::URGENT)->response_time_minutes);
+        $this->assertSame(140, SlaConfig::forPriority(ReportPriority::URGENT)->resolution_time_minutes);
     }
 }

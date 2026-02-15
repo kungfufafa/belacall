@@ -70,7 +70,7 @@ class ReportsDetailSheet implements FromCollection, ShouldAutoSize, WithHeadings
             $report->ticket_number,
             $report->title,
             Str::limit($report->description, 100),
-            $report->priority->label(),
+            $report->priority?->label() ?? '-',
             $report->status->label(),
             $report->location_name ?? '-',
             $report->user?->name ?? '-',

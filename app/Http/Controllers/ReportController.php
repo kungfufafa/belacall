@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\ReportPriority;
 use App\Models\Report;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -51,7 +50,7 @@ class ReportController extends Controller
                 'description' => $request->description,
                 'location_name' => $request->location_name,
                 'status' => 'SUBMITTED',
-                'priority' => ReportPriority::MEDIUM->value,
+                // Priority will be set by pimpinan when assigning operator
             ]);
 
             // 3. Upload Foto

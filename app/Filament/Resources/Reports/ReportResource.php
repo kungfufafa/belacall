@@ -2,12 +2,14 @@
 
 namespace App\Filament\Resources\Reports;
 
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Enums\Role;
 use App\Filament\Resources\Reports\Schemas\ReportForm;
 use App\Filament\Resources\Reports\Schemas\ReportInfolist;
 use App\Filament\Resources\Reports\Tables\ReportsTable;
 use App\Models\Report;
+use App\Models\SlaConfig;
 use App\Models\User;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -90,6 +92,56 @@ class ReportResource extends Resource
         $user = Filament::auth()->user();
 
         return $user && in_array($user->role, [Role::ADMIN, Role::PIMPINAN], true);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function priorityOptionsWithSla(): array
+    {
+        return collect(ReportPriority::cases())
+            ->mapWithKeys(function (ReportPriority $priority): array {
+                $sla = SlaConfig::forPriority($priority);
+                $responseTarget = self::formatDuration((int) $sla->response_time_minutes);
+                $resolutionTarget = self::formatDuration((int) $sla->resolution_time_minutes);
+                $label = sprintf(
+                    '%s (Respon %s | Selesai %s)',
+                    $priority->label(),
+                    $responseTarget,
+                    $resolutionTarget
+                );
+
+                return [$priority->value => $label];
+            })
+            ->all();
+    }
+
+    private static function formatDuration(int $minutes): string
+    {
+        if ($minutes <= 0) {
+            return '0 menit';
+        }
+
+        $days = intdiv($minutes, 1440);
+        $remainingMinutes = $minutes % 1440;
+        $hours = intdiv($remainingMinutes, 60);
+        $mins = $remainingMinutes % 60;
+
+        $parts = [];
+
+        if ($days > 0) {
+            $parts[] = "{$days} hari";
+        }
+
+        if ($hours > 0) {
+            $parts[] = "{$hours} jam";
+        }
+
+        if ($mins > 0) {
+            $parts[] = "{$mins} menit";
+        }
+
+        return implode(' ', $parts);
     }
 
     public static function getPages(): array

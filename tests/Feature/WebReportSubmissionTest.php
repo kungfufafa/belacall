@@ -34,11 +34,13 @@ class WebReportSubmissionTest extends TestCase
 
         $this->assertNotNull($report);
         $this->assertSame(ReportStatus::SUBMITTED, $report->status);
+        $this->assertNull($report->priority);
         $this->assertDatabaseHas('reports', [
             'ticket_number' => $report->ticket_number,
             'location_name' => 'Jl. Melati',
             'latitude' => -6.201234,
             'longitude' => 106.812345,
+            'priority' => null,
         ]);
         $this->assertDatabaseHas('users', [
             'phone' => '6281234567890',
@@ -71,5 +73,27 @@ class WebReportSubmissionTest extends TestCase
         ]);
         $this->assertCount(1, Storage::disk('public')->allFiles('evidences'));
         $response->assertRedirect(route('report.tracking.view', ['ticket' => $report->ticket_number]));
+    }
+
+    public function test_report_submission_rejects_invalid_payload(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+
+        $response = $this->from('/lapor')->post('/lapor', [
+            'title' => 'abc',
+            'description' => 'pendek',
+            'phone' => 'not-a-phone',
+            'location_name' => '',
+        ]);
+
+        $response->assertRedirect('/lapor');
+        $response->assertSessionHasErrors([
+            'title',
+            'description',
+            'phone',
+            'location_name',
+        ]);
+        $this->assertDatabaseCount('reports', 0);
     }
 }

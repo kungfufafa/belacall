@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
@@ -436,7 +435,7 @@ class TelegramWebhookController extends Controller
                 'latitude' => $latitude,
                 'longitude' => $longitude,
                 'status' => ReportStatus::SUBMITTED->value,
-                'priority' => ReportPriority::MEDIUM->value,
+                // Priority will be set by pimpinan when assigning operator
             ]);
 
             $this->resetToIdle($session);

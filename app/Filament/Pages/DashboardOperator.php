@@ -56,6 +56,7 @@ class DashboardOperator extends Page
             return [
                 ['label' => 'Tugas Aktif', 'value' => 0],
                 ['label' => 'Perlu Tindakan Hari Ini', 'value' => 0],
+                ['label' => 'SLA Respon Terlewat', 'value' => 0],
                 ['label' => 'Sedang Dikerjakan', 'value' => 0],
                 ['label' => 'Melewati Deadline', 'value' => 0],
                 ['label' => 'Selesai Minggu Ini', 'value' => 0],
@@ -63,36 +64,52 @@ class DashboardOperator extends Page
         }
 
         $assignedQuery = Report::query()->where('assignee_id', $userId);
-        $activeStatuses = [
-            ReportStatus::SUBMITTED,
-            ReportStatus::VERIFIED,
-            ReportStatus::IN_PROGRESS,
-            ReportStatus::NEEDS_REVISION,
-            ReportStatus::RESOLVED,
-        ];
-        $actionTodayStatuses = [
-            ReportStatus::SUBMITTED,
-            ReportStatus::NEEDS_REVISION,
-            ReportStatus::RESOLVED,
+        $actionableStatuses = $this->operatorActionableStatuses();
+        $priorityStatuses = [
+            ReportStatus::VERIFIED->value,
+            ReportStatus::RESOLVED->value,
         ];
 
         return [
             [
                 'label' => 'Tugas Aktif',
-                'value' => (clone $assignedQuery)->whereIn('status', $activeStatuses)->count(),
+                'value' => (clone $assignedQuery)->whereIn('status', $actionableStatuses)->count(),
             ],
             [
                 'label' => 'Perlu Tindakan Hari Ini',
-                'value' => (clone $assignedQuery)->whereIn('status', $actionTodayStatuses)->count(),
+                'value' => (clone $assignedQuery)
+                    ->where(function ($query) use ($priorityStatuses): void {
+                        $query->whereIn('status', $priorityStatuses)
+                            ->orWhere(function ($responseOverdueQuery): void {
+                                $responseOverdueQuery->whereNotNull('response_deadline')
+                                    ->where('response_deadline', '<', now())
+                                    ->whereNull('responded_at');
+                            })
+                            ->orWhere(function ($overdueQuery): void {
+                                $overdueQuery->where('status', ReportStatus::IN_PROGRESS->value)
+                                    ->whereNotNull('resolution_deadline')
+                                    ->where('resolution_deadline', '<', now());
+                            });
+                    })
+                    ->count(),
+            ],
+            [
+                'label' => 'SLA Respon Terlewat',
+                'value' => (clone $assignedQuery)
+                    ->whereNotIn('status', [ReportStatus::CLOSED->value, ReportStatus::REJECTED->value])
+                    ->whereNotNull('response_deadline')
+                    ->where('response_deadline', '<', now())
+                    ->whereNull('responded_at')
+                    ->count(),
             ],
             [
                 'label' => 'Sedang Dikerjakan',
-                'value' => (clone $assignedQuery)->where('status', ReportStatus::IN_PROGRESS)->count(),
+                'value' => (clone $assignedQuery)->where('status', ReportStatus::IN_PROGRESS->value)->count(),
             ],
             [
                 'label' => 'Melewati Deadline',
                 'value' => (clone $assignedQuery)
-                    ->whereIn('status', $activeStatuses)
+                    ->whereIn('status', $actionableStatuses)
                     ->whereNotNull('resolution_deadline')
                     ->where('resolution_deadline', '<', now())
                     ->count(),
@@ -116,14 +133,8 @@ class DashboardOperator extends Page
         return Report::query()
             ->with(['user', 'assignee'])
             ->where('assignee_id', $userId)
-            ->whereIn('status', [
-                ReportStatus::SUBMITTED,
-                ReportStatus::VERIFIED,
-                ReportStatus::IN_PROGRESS,
-                ReportStatus::NEEDS_REVISION,
-                ReportStatus::RESOLVED,
-            ])
-            ->whereIn('priority', [ReportPriority::URGENT, ReportPriority::HIGH])
+            ->whereIn('status', $this->operatorActionableStatuses())
+            ->whereIn('priority', [ReportPriority::URGENT->value, ReportPriority::HIGH->value])
             ->orderByRaw("CASE priority WHEN 'Urgent' THEN 0 WHEN 'High' THEN 1 ELSE 2 END")
             ->oldest('created_at')
             ->limit(6)
@@ -141,20 +152,12 @@ class DashboardOperator extends Page
         return Report::query()
             ->with(['user', 'assignee'])
             ->where('assignee_id', $userId)
-            ->whereIn('status', [
-                ReportStatus::SUBMITTED,
-                ReportStatus::VERIFIED,
-                ReportStatus::IN_PROGRESS,
-                ReportStatus::NEEDS_REVISION,
-                ReportStatus::RESOLVED,
-            ])
+            ->whereIn('status', $this->operatorActionableStatuses())
             ->orderByRaw("CASE status
-                WHEN 'SUBMITTED' THEN 0
-                WHEN 'NEEDS_REVISION' THEN 1
-                WHEN 'VERIFIED' THEN 2
-                WHEN 'IN_PROGRESS' THEN 3
-                WHEN 'RESOLVED' THEN 4
-                ELSE 5 END")
+                WHEN 'VERIFIED' THEN 0
+                WHEN 'IN_PROGRESS' THEN 1
+                WHEN 'RESOLVED' THEN 2
+                ELSE 3 END")
             ->orderByRaw('CASE WHEN resolution_deadline IS NOT NULL AND resolution_deadline < ? THEN 0 ELSE 1 END', [now()])
             ->oldest('created_at')
             ->limit(6)
@@ -188,20 +191,27 @@ class DashboardOperator extends Page
         $isOverdue = $report->resolution_deadline
             && $report->resolution_deadline->isPast()
             && ! $status->isFinal();
+        $isResponseOverdue = $report->response_deadline
+            && $report->response_deadline->isPast()
+            && ! $report->responded_at
+            && ! $status->isFinal();
         $mapped = [
             'ticket' => $report->ticket_number,
             'title' => $report->title ?: 'Tanpa judul',
             'location' => $report->location_name ?: 'Lokasi belum diisi',
             'status_label' => $status->label(),
             'status_color' => $status->color(),
-            'priority_label' => $priority->label(),
-            'priority_color' => $priority->color(),
+            'priority_label' => $priority?->label() ?? 'Belum ditetapkan',
+            'priority_color' => $priority?->color() ?? 'gray',
             'created_at' => $report->created_at?->format('d M Y H:i') ?? '-',
             'updated_at' => $report->updated_at?->format('d M Y H:i') ?? '-',
             'assignee' => $report->assignee?->name ?? 'Belum ditugaskan',
             'reporter' => $report->user?->name ?? 'Warga',
             'url' => ReportResource::getUrl('view', ['record' => $report]),
+            'response_deadline' => $report->response_deadline?->format('d M Y H:i') ?? '-',
+            'resolution_deadline' => $report->resolution_deadline?->format('d M Y H:i') ?? '-',
             'is_overdue' => $isOverdue,
+            'is_response_overdue' => $isResponseOverdue,
         ];
 
         if (! $withHint) {
@@ -209,14 +219,24 @@ class DashboardOperator extends Page
         }
 
         $mapped['hint'] = match ($status) {
-            ReportStatus::SUBMITTED => 'Mohon cek dan verifikasi laporan ini.',
             ReportStatus::VERIFIED => 'Laporan siap dikerjakan.',
             ReportStatus::IN_PROGRESS => 'Lanjutkan pekerjaan dan unggah bukti.',
-            ReportStatus::NEEDS_REVISION => 'Menunggu perbaikan dari warga.',
             ReportStatus::RESOLVED => 'Sudah selesai, silakan tutup jika valid.',
             default => 'Silakan cek tindak lanjut laporan.',
         };
 
         return $mapped;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function operatorActionableStatuses(): array
+    {
+        return [
+            ReportStatus::VERIFIED->value,
+            ReportStatus::IN_PROGRESS->value,
+            ReportStatus::RESOLVED->value,
+        ];
     }
 }

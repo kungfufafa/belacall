@@ -8,6 +8,23 @@
             <p class="text-gray-600 mt-2">Silakan isi formulir di bawah ini dengan lengkap.</p>
         </div>
 
+        @if (session('error'))
+            <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {{ session('error') }}
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <p class="font-semibold">Data laporan belum valid:</p>
+                <ul class="mt-1 list-disc pl-5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <form action="{{ route('report.store') }}" method="POST" enctype="multipart/form-data" class="flex flex-col gap-6">
             @csrf
 
@@ -16,7 +33,7 @@
                 <label for="title" class="text-sm font-medium text-gray-700">Judul Laporan <span class="text-red-500">*</span></label>
                 <input type="text" name="title" id="title" 
                     class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
-                    placeholder="Apa yang ingin Anda laporkan?" required>
+                    placeholder="Apa yang ingin Anda laporkan?" value="{{ old('title') }}" required>
             </div>
 
             <!-- Isi Laporan -->
@@ -24,7 +41,7 @@
                 <label for="description" class="text-sm font-medium text-gray-700">Detail Laporan <span class="text-red-500">*</span></label>
                 <textarea name="description" id="description" rows="5" 
                     class="mt-1.5 flex w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium resize-none"
-                    placeholder="Jelaskan detail kejadian secara lengkap..." required></textarea>
+                    placeholder="Jelaskan detail kejadian secara lengkap..." required>{{ old('description') }}</textarea>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -33,16 +50,16 @@
                     <label for="location_name" class="text-sm font-medium text-gray-700">Lokasi Kejadian <span class="text-red-500">*</span></label>
                     <input type="text" name="location_name" id="location_name" required 
                         class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
-                        placeholder="Nama jalan atau patokan">
+                        placeholder="Nama jalan atau patokan" value="{{ old('location_name') }}">
                 </div>
 
                 <!-- Nomor WA -->
                 <div>
-                    <label for="phone" class="text-sm font-medium text-gray-700">Nomor Telegram <span class="text-red-500">*</span></label>
+                    <label for="phone" class="text-sm font-medium text-gray-700">Nomor HP Pelapor <span class="text-red-500">*</span></label>
                     <input type="tel" name="phone" id="phone" required 
                         class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
-                        placeholder="Contoh: 08123456789">
-                    <p class="mt-1.5 text-xs text-gray-500">Untuk notifikasi update status laporan.</p>
+                        placeholder="Contoh: 08123456789" value="{{ old('phone') }}">
+                    <p class="mt-1.5 text-xs text-gray-500">Format 08xxx atau 62xxx. Dipakai untuk verifikasi tracking dan notifikasi Telegram.</p>
                 </div>
             </div>
 
@@ -62,14 +79,14 @@
                         <label for="latitude" class="text-sm font-medium text-gray-700">Latitude</label>
                         <input type="text" name="latitude" id="latitude" readonly
                             class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-sm placeholder:text-gray-400 cursor-not-allowed transition-all font-medium"
-                            placeholder="-6.200000">
+                            placeholder="-6.200000" value="{{ old('latitude') }}">
                     </div>
 
                     <div>
                         <label for="longitude" class="text-sm font-medium text-gray-700">Longitude</label>
                         <input type="text" name="longitude" id="longitude" readonly
                             class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-sm placeholder:text-gray-400 cursor-not-allowed transition-all font-medium"
-                            placeholder="106.800000">
+                            placeholder="106.800000" value="{{ old('longitude') }}">
                     </div>
                 </div>
 
@@ -78,10 +95,10 @@
 
             <!-- Bukti Foto -->
             <div>
-                <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto <span class="text-red-500">*</span></label>
+                <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto (Opsional)</label>
                 <div id="upload-zone" class="mt-1.5 flex justify-center rounded-xl border-2 border-dashed border-gray-300 px-6 py-8 transition-all hover:bg-green-50/50 hover:border-green-400 cursor-pointer">
                     <div class="text-center relative w-full">
-                        <input id="evidence" name="evidence" type="file" accept="image/*" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        <input id="evidence" name="evidence" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                         
                         <!-- Preview Container (hidden by default) -->
                         <div id="preview-container" class="hidden">

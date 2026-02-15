@@ -12,7 +12,15 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class ReportsSummarySheet implements FromArray, WithStyles, WithTitle
 {
     /**
-     * @param  array{total: int, by_status: array<string, int>, by_priority: array<string, int>, sla_compliance_rate: float, average_resolution_time: string}  $summary
+     * @param  array{
+     *     total: int,
+     *     by_status: array<string, int>,
+     *     by_priority: array<string, int>,
+     *     response_sla_compliance_rate: float,
+     *     resolution_sla_compliance_rate: float,
+     *     sla_compliance_rate: float,
+     *     average_resolution_time: string
+     * }  $summary
      */
     public function __construct(
         private readonly array $summary,
@@ -37,7 +45,8 @@ class ReportsSummarySheet implements FromArray, WithStyles, WithTitle
 
         $rows[] = ['Statistik Umum'];
         $rows[] = ['Total Laporan', $this->summary['total']];
-        $rows[] = ['Kepatuhan SLA', $this->summary['sla_compliance_rate'].'%'];
+        $rows[] = ['Kepatuhan SLA Respon', $this->summary['response_sla_compliance_rate'].'%'];
+        $rows[] = ['Kepatuhan SLA Selesai', $this->summary['resolution_sla_compliance_rate'].'%'];
         $rows[] = ['Rata-rata Penyelesaian', $this->summary['average_resolution_time']];
         $rows[] = [];
 

@@ -12,7 +12,15 @@ class ReportsExport implements WithMultipleSheets
 {
     /**
      * @param  Collection<int, Report>  $reports
-     * @param  array{total: int, by_status: array<string, int>, by_priority: array<string, int>, sla_compliance_rate: float, average_resolution_time: string}  $summary
+     * @param  array{
+     *     total: int,
+     *     by_status: array<string, int>,
+     *     by_priority: array<string, int>,
+     *     response_sla_compliance_rate: float,
+     *     resolution_sla_compliance_rate: float,
+     *     sla_compliance_rate: float,
+     *     average_resolution_time: string
+     * }  $summary
      */
     public function __construct(
         private readonly Collection $reports,

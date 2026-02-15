@@ -41,8 +41,8 @@ class ReportsTable
                 TextColumn::make('priority')
                     ->label('Prioritas')
                     ->badge()
-                    ->color(fn (ReportPriority $state): string => $state->color())
-                    ->formatStateUsing(fn (ReportPriority $state): string => $state->label()),
+                    ->color(fn (?ReportPriority $state): string => $state?->color() ?? 'gray')
+                    ->formatStateUsing(fn (?ReportPriority $state): string => $state?->label() ?? 'Belum ditetapkan'),
                 TextColumn::make('location_name')
                     ->label('Lokasi')
                     ->searchable(),
@@ -58,6 +58,28 @@ class ReportsTable
                     ->label('Status')
                     ->badge()
                     ->color(fn (ReportStatus $state): string => $state->color()),
+                TextColumn::make('response_deadline')
+                    ->label('Batas Respon')
+                    ->dateTime()
+                    ->placeholder('-')
+                    ->sortable()
+                    ->toggleable(),
+                TextColumn::make('resolution_deadline')
+                    ->label('Batas Selesai')
+                    ->dateTime()
+                    ->placeholder('-')
+                    ->sortable()
+                    ->toggleable(),
+                TextColumn::make('responded_at')
+                    ->label('Respon Pertama')
+                    ->dateTime()
+                    ->placeholder('-')
+                    ->toggleable(),
+                TextColumn::make('resolved_at')
+                    ->label('Waktu Selesai')
+                    ->dateTime()
+                    ->placeholder('-')
+                    ->toggleable(),
                 TextColumn::make('created_at')
                     ->label('Tanggal Dibuat')
                     ->dateTime()
@@ -87,8 +109,9 @@ class ReportsTable
                                 ->required(),
                             Select::make('priority')
                                 ->label('Prioritas')
-                                ->options(ReportPriority::class)
-                                ->required(),
+                                ->options(fn (): array => ReportResource::priorityOptionsWithSla())
+                                ->required()
+                                ->helperText('Prioritas hanya dapat ditetapkan sekali. Jika laporan sudah memiliki prioritas, prioritas baru akan diabaikan. Label menampilkan target respon dan target selesai (eskalasi SLA).'),
                             Textarea::make('notes')
                                 ->label('Catatan')
                                 ->rows(3),
@@ -107,7 +130,7 @@ class ReportsTable
                                     $oldAssignee = $record->assignee?->name;
                                     $oldPriority = $record->priority instanceof ReportPriority
                                         ? $record->priority->value
-                                        : (string) $record->priority;
+                                        : ($record->priority !== null ? (string) $record->priority : null);
                                     $oldStatus = $record->status instanceof ReportStatus
                                         ? $record->status->value
                                         : (string) $record->status;
@@ -117,10 +140,14 @@ class ReportsTable
 
                                     $updates = [
                                         'assignee_id' => $assignee->id,
-                                        'priority' => $data['priority'],
                                     ];
 
-                                    if ($status && in_array($status, [ReportStatus::SUBMITTED, ReportStatus::NEEDS_REVISION], true)) {
+                                    // Only update priority if it was not already set
+                                    if ($record->priority === null) {
+                                        $updates['priority'] = $data['priority'];
+                                    }
+
+                                    if ($status === ReportStatus::SUBMITTED) {
                                         $updates['status'] = ReportStatus::VERIFIED->value;
                                     }
 
@@ -136,7 +163,8 @@ class ReportsTable
                                         'notes' => $data['notes'] ?? null,
                                     ]);
 
-                                    if ($oldPriority !== $data['priority']) {
+                                    // Only create priority change history if priority actually changed
+                                    if ($oldPriority !== ($updates['priority'] ?? $oldPriority)) {
                                         ReportHistory::create([
                                             'report_id' => $record->id,
                                             'user_id' => $actor->id,

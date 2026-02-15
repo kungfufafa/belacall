@@ -23,11 +23,35 @@ class ReportSeeder extends Seeder
         $reports = $this->getReportData($warga, $operators);
 
         foreach ($reports as $reportData) {
+            $normalizedReportData = $this->normalizeWorkflowData($reportData);
+
             Report::firstOrCreate(
-                ['ticket_number' => $reportData['ticket_number']],
-                $reportData
+                ['ticket_number' => $normalizedReportData['ticket_number']],
+                $normalizedReportData
             );
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $reportData
+     * @return array<string, mixed>
+     */
+    private function normalizeWorkflowData(array $reportData): array
+    {
+        $assigneeId = $reportData['assignee_id'] ?? null;
+        $priority = $reportData['priority'] ?? null;
+
+        if ($assigneeId === null) {
+            $reportData['priority'] = null;
+
+            return $reportData;
+        }
+
+        if ($priority === null) {
+            $reportData['priority'] = 'Medium';
+        }
+
+        return $reportData;
     }
 
     private function getReportData($warga, $operators): array

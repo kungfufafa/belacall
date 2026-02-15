@@ -56,20 +56,28 @@ class DashboardPimpinan extends Page
                 'label' => 'Belum Dibagi ke Petugas',
                 'value' => Report::query()
                     ->whereNull('assignee_id')
-                    ->whereIn('status', [ReportStatus::SUBMITTED, ReportStatus::VERIFIED])
+                    ->where('status', ReportStatus::SUBMITTED->value)
                     ->count(),
             ],
             [
-                'label' => 'Mendesak Belum Dibagi',
+                'label' => 'Perlu Verifikasi Ulang',
                 'value' => Report::query()
-                    ->whereNull('assignee_id')
-                    ->whereIn('status', [ReportStatus::SUBMITTED, ReportStatus::VERIFIED])
-                    ->whereIn('priority', [ReportPriority::URGENT, ReportPriority::HIGH])
+                    ->whereNotNull('assignee_id')
+                    ->where('status', ReportStatus::SUBMITTED->value)
+                    ->count(),
+            ],
+            [
+                'label' => 'SLA Respon Terlewat',
+                'value' => Report::query()
+                    ->whereNotIn('status', [ReportStatus::CLOSED, ReportStatus::REJECTED])
+                    ->whereNotNull('response_deadline')
+                    ->where('response_deadline', '<', now())
+                    ->whereNull('responded_at')
                     ->count(),
             ],
             [
                 'label' => 'Sedang Dikerjakan',
-                'value' => Report::query()->where('status', ReportStatus::IN_PROGRESS)->count(),
+                'value' => Report::query()->where('status', ReportStatus::IN_PROGRESS->value)->count(),
             ],
             [
                 'label' => 'Melewati Deadline',
@@ -98,8 +106,7 @@ class DashboardPimpinan extends Page
         return Report::query()
             ->with(['user', 'assignee'])
             ->whereNull('assignee_id')
-            ->whereIn('status', [ReportStatus::SUBMITTED, ReportStatus::VERIFIED])
-            ->orderByRaw("CASE priority WHEN 'Urgent' THEN 0 WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END")
+            ->where('status', ReportStatus::SUBMITTED->value)
             ->oldest('created_at')
             ->limit(8)
             ->get()
@@ -120,7 +127,7 @@ class DashboardPimpinan extends Page
             ->map(function (Report $report): array {
                 $mapped = $this->mapReport($report, includeAge: true);
                 $mapped['age'] = $report->resolution_deadline
-                    ? $report->resolution_deadline->diffInDays(now()).' hari lewat'
+                    ? $this->formatRoundedDays($report->resolution_deadline->diffInDays(now())).' hari lewat'
                     : '-';
 
                 return $mapped;
@@ -134,10 +141,8 @@ class DashboardPimpinan extends Page
             ->where('role', Role::OPERATOR)
             ->withCount([
                 'reportsAssigned as active_count' => fn ($query) => $query->whereIn('status', [
-                    ReportStatus::SUBMITTED->value,
                     ReportStatus::VERIFIED->value,
                     ReportStatus::IN_PROGRESS->value,
-                    ReportStatus::NEEDS_REVISION->value,
                     ReportStatus::RESOLVED->value,
                 ]),
                 'reportsAssigned as overdue_count' => fn ($query) => $query
@@ -172,8 +177,8 @@ class DashboardPimpinan extends Page
             'location' => $report->location_name ?: 'Lokasi belum diisi',
             'status_label' => $status->label(),
             'status_color' => $status->color(),
-            'priority_label' => $priority->label(),
-            'priority_color' => $priority->color(),
+            'priority_label' => $priority?->label() ?? 'Belum ditetapkan',
+            'priority_color' => $priority?->color() ?? 'gray',
             'created_at' => $report->created_at?->format('d M Y H:i') ?? '-',
             'updated_at' => $report->updated_at?->format('d M Y H:i') ?? '-',
             'assignee' => $report->assignee?->name ?? 'Belum ditugaskan',
@@ -186,9 +191,14 @@ class DashboardPimpinan extends Page
         }
 
         $mapped['age'] = $report->created_at
-            ? $report->created_at->diffInDays(now()).' hari'
+            ? $this->formatRoundedDays($report->created_at->diffInDays(now())).' hari'
             : '-';
 
         return $mapped;
+    }
+
+    private function formatRoundedDays(float $days): int
+    {
+        return max(0, (int) round($days));
     }
 }

@@ -102,6 +102,97 @@ class AdminPanelRoleAccessTest extends TestCase
         $this->get(UserResource::getUrl('index'))->assertForbidden();
     }
 
+    public function test_pimpinan_dashboard_handles_reports_without_priority(): void
+    {
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+        $report = Report::factory()->create([
+            'priority' => null,
+            'assignee_id' => null,
+            'status' => ReportStatus::SUBMITTED,
+        ]);
+
+        $this->actingAs($pimpinan)
+            ->get(DashboardPimpinan::getUrl())
+            ->assertOk()
+            ->assertSee($report->ticket_number)
+            ->assertSee('Belum ditetapkan');
+    }
+
+    public function test_pimpinan_dashboard_rounds_ticket_age_to_whole_days(): void
+    {
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+        $report = Report::factory()->create([
+            'priority' => null,
+            'assignee_id' => null,
+            'status' => ReportStatus::SUBMITTED,
+            'created_at' => now()->subDays(3)->subMinutes(30),
+        ]);
+
+        $this->actingAs($pimpinan)
+            ->get(DashboardPimpinan::getUrl())
+            ->assertOk()
+            ->assertSee($report->ticket_number)
+            ->assertSee('3 hari')
+            ->assertDontSee('3.020');
+    }
+
+    public function test_operator_dashboard_only_shows_actionable_status_in_main_queue(): void
+    {
+        $operator = User::factory()->create(['role' => Role::OPERATOR]);
+
+        $actionableReport = Report::factory()->create([
+            'assignee_id' => $operator->id,
+            'status' => ReportStatus::VERIFIED,
+            'priority' => ReportPriority::HIGH,
+        ]);
+        $submittedReport = Report::factory()->create([
+            'assignee_id' => $operator->id,
+            'status' => ReportStatus::SUBMITTED,
+            'priority' => ReportPriority::MEDIUM,
+        ]);
+        $needsRevisionReport = Report::factory()->create([
+            'assignee_id' => $operator->id,
+            'status' => ReportStatus::NEEDS_REVISION,
+            'priority' => ReportPriority::MEDIUM,
+        ]);
+
+        $this->actingAs($operator)
+            ->get(DashboardOperator::getUrl())
+            ->assertOk()
+            ->assertSee($actionableReport->ticket_number)
+            ->assertDontSee($submittedReport->ticket_number)
+            ->assertDontSee($needsRevisionReport->ticket_number);
+    }
+
+    public function test_pimpinan_backlog_only_lists_unassigned_submitted_reports(): void
+    {
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+        $operator = User::factory()->create(['role' => Role::OPERATOR]);
+
+        $queuedReport = Report::factory()->create([
+            'assignee_id' => null,
+            'status' => ReportStatus::SUBMITTED,
+            'priority' => null,
+        ]);
+        $unassignedVerifiedReport = Report::factory()->create([
+            'assignee_id' => null,
+            'status' => ReportStatus::VERIFIED,
+            'priority' => null,
+        ]);
+        $assignedSubmittedReport = Report::factory()->create([
+            'assignee_id' => $operator->id,
+            'status' => ReportStatus::SUBMITTED,
+            'priority' => ReportPriority::MEDIUM,
+        ]);
+
+        $this->actingAs($pimpinan)
+            ->get(DashboardPimpinan::getUrl())
+            ->assertOk()
+            ->assertSee($queuedReport->ticket_number)
+            ->assertDontSee($unassignedVerifiedReport->ticket_number)
+            ->assertDontSee($assignedSubmittedReport->ticket_number);
+    }
+
     public function test_admin_can_manage_users_and_reports(): void
     {
         $admin = User::factory()->create(['role' => Role::ADMIN]);
@@ -222,6 +313,70 @@ class AdminPanelRoleAccessTest extends TestCase
         ]);
     }
 
+    public function test_pimpinan_can_set_report_to_needs_revision(): void
+    {
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+        $report = Report::factory()->create([
+            'status' => ReportStatus::SUBMITTED,
+            'assignee_id' => null,
+            'priority' => null,
+        ]);
+
+        $this->actingAs($pimpinan);
+
+        Livewire::test(ViewReport::class, ['record' => $report->id])
+            ->callAction('followUp', [
+                'status' => ReportStatus::NEEDS_REVISION->value,
+                'notes' => 'Mohon lengkapi bukti dan detail lokasi.',
+            ]);
+
+        $this->assertDatabaseHas('reports', [
+            'id' => $report->id,
+            'status' => ReportStatus::NEEDS_REVISION->value,
+        ]);
+        $this->assertDatabaseHas('report_histories', [
+            'report_id' => $report->id,
+            'action' => 'STATUS_CHANGE',
+            'old_value' => ReportStatus::SUBMITTED->value,
+            'new_value' => ReportStatus::NEEDS_REVISION->value,
+        ]);
+    }
+
+    public function test_pimpinan_can_reject_report_but_cannot_set_in_progress(): void
+    {
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+        $report = Report::factory()->create([
+            'status' => ReportStatus::SUBMITTED,
+            'assignee_id' => null,
+            'priority' => null,
+        ]);
+
+        $this->actingAs($pimpinan);
+
+        Livewire::test(ViewReport::class, ['record' => $report->id])
+            ->callAction('followUp', [
+                'status' => ReportStatus::IN_PROGRESS->value,
+                'notes' => 'Tidak boleh dikerjakan langsung oleh lurah.',
+            ])
+            ->assertHasActionErrors(['status']);
+
+        $this->assertDatabaseHas('reports', [
+            'id' => $report->id,
+            'status' => ReportStatus::SUBMITTED->value,
+        ]);
+
+        Livewire::test(ViewReport::class, ['record' => $report->id])
+            ->callAction('followUp', [
+                'status' => ReportStatus::REJECTED->value,
+                'notes' => 'Laporan tidak memenuhi kriteria.',
+            ]);
+
+        $this->assertDatabaseHas('reports', [
+            'id' => $report->id,
+            'status' => ReportStatus::REJECTED->value,
+        ]);
+    }
+
     public function test_operator_cannot_jump_status_directly_to_closed(): void
     {
         $operator = User::factory()->create(['role' => Role::OPERATOR]);
@@ -274,21 +429,24 @@ class AdminPanelRoleAccessTest extends TestCase
         ]);
     }
 
-    public function test_pimpinan_cannot_assign_final_reports(): void
+    public function test_only_submitted_reports_can_be_assigned(): void
     {
         $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
-        $finalStatuses = [
-            ReportStatus::RESOLVED,
-            ReportStatus::CLOSED,
-            ReportStatus::REJECTED,
-        ];
 
-        foreach ($finalStatuses as $status) {
+        foreach (ReportStatus::cases() as $status) {
             $report = Report::factory()->create([
                 'status' => $status,
             ]);
 
-            $this->assertFalse(Gate::forUser($pimpinan)->allows('assign', $report));
+            $isAllowed = Gate::forUser($pimpinan)->allows('assign', $report);
+
+            if ($status === ReportStatus::SUBMITTED) {
+                $this->assertTrue($isAllowed, 'Status SUBMITTED harus bisa di-assign.');
+
+                continue;
+            }
+
+            $this->assertFalse($isAllowed, "Status {$status->value} tidak boleh di-assign.");
         }
     }
 

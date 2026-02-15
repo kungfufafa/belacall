@@ -131,8 +131,8 @@ class ReportInfolist
                                         TextEntry::make('priority')
                                             ->label('Prioritas')
                                             ->badge()
-                                            ->color(fn (ReportPriority $state): string => $state->color())
-                                            ->formatStateUsing(fn (ReportPriority $state): string => $state->label()),
+                                            ->color(fn (?ReportPriority $state): string => $state?->color() ?? 'gray')
+                                            ->formatStateUsing(fn (?ReportPriority $state): string => $state?->label() ?? 'Belum ditetapkan'),
                                         TextEntry::make('status')
                                             ->label('Status')
                                             ->badge()
@@ -153,6 +153,22 @@ class ReportInfolist
                                             ->badge()
                                             ->placeholder('-')
                                             ->color(fn (\App\Enums\Role $state): string => self::roleColor($state)),
+                                        TextEntry::make('response_deadline')
+                                            ->label('Batas Waktu Respon')
+                                            ->dateTime()
+                                            ->placeholder('-'),
+                                        TextEntry::make('resolution_deadline')
+                                            ->label('Batas Waktu Selesai')
+                                            ->dateTime()
+                                            ->placeholder('-'),
+                                        TextEntry::make('responded_at')
+                                            ->label('Waktu Respon Pertama')
+                                            ->dateTime()
+                                            ->placeholder('-'),
+                                        TextEntry::make('resolved_at')
+                                            ->label('Waktu Tuntas')
+                                            ->dateTime()
+                                            ->placeholder('-'),
                                         TextEntry::make('created_at')
                                             ->label('Tanggal Dibuat')
                                             ->dateTime(),

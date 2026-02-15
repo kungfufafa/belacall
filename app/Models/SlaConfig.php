@@ -14,6 +14,41 @@ class SlaConfig extends Model
 
     protected $guarded = ['id'];
 
+    protected static function booted(): void
+    {
+        static::updating(function (self $config): void {
+            if (! $config->isDirty('priority')) {
+                return;
+            }
+
+            $oldPriority = (string) $config->getRawOriginal('priority');
+
+            if ($oldPriority !== '') {
+                Cache::forget(self::cacheKey($oldPriority));
+            }
+        });
+
+        static::saved(function (self $config): void {
+            $priority = $config->priority instanceof ReportPriority
+                ? $config->priority->value
+                : (string) $config->priority;
+
+            if ($priority !== '') {
+                Cache::forget(self::cacheKey($priority));
+            }
+        });
+
+        static::deleted(function (self $config): void {
+            $priority = $config->priority instanceof ReportPriority
+                ? $config->priority->value
+                : (string) $config->priority;
+
+            if ($priority !== '') {
+                Cache::forget(self::cacheKey($priority));
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -23,7 +58,7 @@ class SlaConfig extends Model
 
     public static function forPriority(ReportPriority $priority): self
     {
-        $cacheKey = "sla_config_{$priority->value}";
+        $cacheKey = self::cacheKey($priority->value);
         $cacheTtl = 3600; // 1 hour
 
         return Cache::remember($cacheKey, $cacheTtl, function () use ($priority) {
@@ -67,5 +102,10 @@ class SlaConfig extends Model
             ReportPriority::MEDIUM => 2880,
             ReportPriority::LOW => 10080,
         };
+    }
+
+    private static function cacheKey(string $priority): string
+    {
+        return "sla_config_{$priority}";
     }
 }

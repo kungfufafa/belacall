@@ -23,6 +23,7 @@
             $summaryStyles = [
                 'border-violet-200 bg-violet-50/70 text-violet-800 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-200',
                 'border-rose-200 bg-rose-50/70 text-rose-800 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200',
+                'border-orange-200 bg-orange-50/70 text-orange-800 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-200',
                 'border-sky-200 bg-sky-50/70 text-sky-800 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-200',
                 'border-amber-200 bg-amber-50/70 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200',
                 'border-emerald-200 bg-emerald-50/70 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200',
@@ -30,7 +31,7 @@
             ];
         @endphp
 
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
             @foreach ($summary as $index => $item)
                 @php
                     $cardStyle = $summaryStyles[$index] ?? 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-200';

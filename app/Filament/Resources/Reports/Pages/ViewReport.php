@@ -38,8 +38,13 @@ class ViewReport extends ViewRecord
                         ->required(),
                     Select::make('priority')
                         ->label('Prioritas')
-                        ->options(ReportPriority::class)
-                        ->required(),
+                        ->options(fn (): array => ReportResource::priorityOptionsWithSla())
+                        ->required()
+                        ->disabled(fn (): bool => $this->getRecord()->priority !== null)
+                        ->dehydrated()
+                        ->helperText(fn (): ?string => $this->getRecord()->priority !== null
+                            ? 'Prioritas sudah ditetapkan dan tidak dapat diubah.'
+                            : 'Prioritas hanya dapat ditetapkan sekali saat penugasan pertama. Label prioritas menampilkan target respon dan target selesai (eskalasi SLA).'),
                     Textarea::make('notes')
                         ->label('Catatan')
                         ->rows(3),
@@ -52,7 +57,7 @@ class ViewReport extends ViewRecord
                     $oldAssignee = $record->assignee?->name;
                     $oldPriority = $record->priority instanceof ReportPriority
                         ? $record->priority->value
-                        : (string) $record->priority;
+                        : ($record->priority !== null ? (string) $record->priority : null);
                     $oldStatus = $record->status instanceof ReportStatus
                         ? $record->status->value
                         : (string) $record->status;
@@ -62,10 +67,14 @@ class ViewReport extends ViewRecord
 
                     $updates = [
                         'assignee_id' => $data['assignee_id'],
-                        'priority' => $data['priority'],
                     ];
 
-                    if ($status && in_array($status, [ReportStatus::SUBMITTED, ReportStatus::NEEDS_REVISION], true)) {
+                    // Only update priority if it was not already set
+                    if ($record->priority === null) {
+                        $updates['priority'] = $data['priority'];
+                    }
+
+                    if ($status === ReportStatus::SUBMITTED) {
                         $updates['status'] = ReportStatus::VERIFIED->value;
                     }
 
@@ -83,7 +92,7 @@ class ViewReport extends ViewRecord
                         'notes' => $data['notes'] ?? null,
                     ]);
 
-                    if ($oldPriority !== $data['priority']) {
+                    if ($oldPriority !== ($updates['priority'] ?? $oldPriority)) {
                         ReportHistory::create([
                             'report_id' => $record->id,
                             'user_id' => Filament::auth()->user()?->id,
@@ -217,6 +226,13 @@ class ViewReport extends ViewRecord
         return $user?->role === Role::OPERATOR;
     }
 
+    private function isPimpinan(): bool
+    {
+        $user = Filament::auth()->user();
+
+        return $user?->role === Role::PIMPINAN;
+    }
+
     /**
      * @return array<string, string>
      */
@@ -239,6 +255,10 @@ class ViewReport extends ViewRecord
 
     private function canActorSetStatus(ReportStatus $from, ReportStatus $to): bool
     {
+        if ($this->isPimpinan()) {
+            return in_array($to, [ReportStatus::NEEDS_REVISION, ReportStatus::REJECTED], true);
+        }
+
         if (! $this->isOperator()) {
             return true;
         }

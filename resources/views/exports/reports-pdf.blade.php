@@ -56,8 +56,12 @@
                             <td class="number"><strong>{{ $summary['total'] }}</strong></td>
                         </tr>
                         <tr>
-                            <td>Kepatuhan SLA</td>
-                            <td class="number">{{ $summary['sla_compliance_rate'] }}%</td>
+                            <td>Kepatuhan SLA Respon</td>
+                            <td class="number">{{ $summary['response_sla_compliance_rate'] }}%</td>
+                        </tr>
+                        <tr>
+                            <td>Kepatuhan SLA Selesai</td>
+                            <td class="number">{{ $summary['resolution_sla_compliance_rate'] }}%</td>
                         </tr>
                         <tr>
                             <td>Rata-rata Penyelesaian</td>
@@ -123,7 +127,7 @@
                         <td>{{ $index + 1 }}</td>
                         <td>{{ $report->ticket_number }}</td>
                         <td>{{ \Illuminate\Support\Str::limit($report->title, 40) }}</td>
-                        <td>{{ $report->priority->label() }}</td>
+                        <td>{{ $report->priority?->label() ?? '-' }}</td>
                         <td>{{ $report->status->label() }}</td>
                         <td>{{ \Illuminate\Support\Str::limit($report->location_name, 25) }}</td>
                         <td>{{ $report->user?->name ?? '-' }}</td>
