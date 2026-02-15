@@ -35,16 +35,15 @@ return [
         ],
     ],
 
-    'fonnte' => [
-        'token' => env('FONNTE_TOKEN'),
-        'fake_mode' => filter_var(env('FONNTE_FAKE_MODE', false), FILTER_VALIDATE_BOOL),
-        'webhook_token' => env('FONNTE_WEBHOOK_TOKEN'),
-        'allow_insecure_webhook' => env('FONNTE_ALLOW_INSECURE_WEBHOOK', false),
-        'session_timeout_minutes' => (int) env('FONNTE_SESSION_TIMEOUT_MINUTES', 30),
-        'rate_limit_per_minute' => (int) env('FONNTE_WEBHOOK_RATE_PER_MINUTE', 40),
-        'global_rate_limit_per_minute' => (int) env('FONNTE_WEBHOOK_GLOBAL_RATE_PER_MINUTE', 1200),
-        'webhook_lock_seconds' => (int) env('FONNTE_WEBHOOK_LOCK_SECONDS', 30),
-        'webhook_wait_seconds' => (int) env('FONNTE_WEBHOOK_WAIT_SECONDS', 20),
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'fake_mode' => filter_var(env('TELEGRAM_FAKE_MODE', false), FILTER_VALIDATE_BOOL),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+        'session_timeout_minutes' => (int) env('TELEGRAM_SESSION_TIMEOUT_MINUTES', 30),
+        'rate_limit_per_minute' => (int) env('TELEGRAM_WEBHOOK_RATE_PER_MINUTE', 40),
+        'global_rate_limit_per_minute' => (int) env('TELEGRAM_WEBHOOK_GLOBAL_RATE_PER_MINUTE', 1200),
+        'webhook_lock_seconds' => (int) env('TELEGRAM_WEBHOOK_LOCK_SECONDS', 30),
+        'webhook_wait_seconds' => (int) env('TELEGRAM_WEBHOOK_WAIT_SECONDS', 20),
     ],
 
 ];

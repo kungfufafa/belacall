@@ -7,6 +7,7 @@ use App\Enums\ReportStatus;
 use App\Enums\Role;
 use App\Filament\Resources\Reports\ReportResource;
 use App\Models\Report;
+use App\Models\SlaConfig;
 use App\Models\User;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -43,13 +44,13 @@ class DashboardPimpinan extends Page
 
     private function overdueDays(): int
     {
-        return 3;
+        $config = SlaConfig::forPriority(ReportPriority::MEDIUM);
+
+        return max(1, (int) ceil($config->resolution_time_minutes / 1440));
     }
 
     private function buildSummary(): array
     {
-        $overdueCutoff = now()->subDays($this->overdueDays());
-
         return [
             [
                 'label' => 'Belum Dibagi ke Petugas',
@@ -71,10 +72,11 @@ class DashboardPimpinan extends Page
                 'value' => Report::query()->where('status', ReportStatus::IN_PROGRESS)->count(),
             ],
             [
-                'label' => 'Belum Update > 3 Hari',
+                'label' => 'Melewati Deadline',
                 'value' => Report::query()
-                    ->where('status', ReportStatus::IN_PROGRESS)
-                    ->where('updated_at', '<', $overdueCutoff)
+                    ->whereNotIn('status', [ReportStatus::CLOSED, ReportStatus::REJECTED])
+                    ->whereNotNull('resolution_deadline')
+                    ->where('resolution_deadline', '<', now())
                     ->count(),
             ],
             [
@@ -107,20 +109,18 @@ class DashboardPimpinan extends Page
 
     private function getOverdueReports(): array
     {
-        $now = now();
-        $overdueCutoff = $now->copy()->subDays($this->overdueDays());
-
         return Report::query()
             ->with(['user', 'assignee'])
-            ->where('status', ReportStatus::IN_PROGRESS)
-            ->where('updated_at', '<', $overdueCutoff)
+            ->whereNotIn('status', [ReportStatus::CLOSED, ReportStatus::REJECTED])
+            ->whereNotNull('resolution_deadline')
+            ->where('resolution_deadline', '<', now())
             ->latest()
             ->limit(6)
             ->get()
-            ->map(function (Report $report) use ($now): array {
+            ->map(function (Report $report): array {
                 $mapped = $this->mapReport($report, includeAge: true);
-                $mapped['age'] = $report->updated_at
-                    ? $report->updated_at->diffInDays($now).' hari'
+                $mapped['age'] = $report->resolution_deadline
+                    ? $report->resolution_deadline->diffInDays(now()).' hari lewat'
                     : '-';
 
                 return $mapped;
@@ -130,8 +130,6 @@ class DashboardPimpinan extends Page
 
     private function getOperatorLoads(): array
     {
-        $overdueCutoff = now()->subDays($this->overdueDays());
-
         return User::query()
             ->where('role', Role::OPERATOR)
             ->withCount([
@@ -143,8 +141,9 @@ class DashboardPimpinan extends Page
                     ReportStatus::RESOLVED->value,
                 ]),
                 'reportsAssigned as overdue_count' => fn ($query) => $query
-                    ->where('status', ReportStatus::IN_PROGRESS->value)
-                    ->where('updated_at', '<', $overdueCutoff),
+                    ->whereNotIn('status', [ReportStatus::CLOSED->value, ReportStatus::REJECTED->value])
+                    ->whereNotNull('resolution_deadline')
+                    ->where('resolution_deadline', '<', now()),
                 'reportsAssigned as completed_week_count' => fn ($query) => $query
                     ->whereIn('status', [ReportStatus::RESOLVED->value, ReportStatus::CLOSED->value])
                     ->where('updated_at', '>=', now()->subDays(7)),
@@ -173,8 +172,8 @@ class DashboardPimpinan extends Page
             'location' => $report->location_name ?: 'Lokasi belum diisi',
             'status_label' => $status->label(),
             'status_color' => $status->color(),
-            'priority_label' => $this->priorityLabel($priority),
-            'priority_color' => $this->priorityColor($priority),
+            'priority_label' => $priority->label(),
+            'priority_color' => $priority->color(),
             'created_at' => $report->created_at?->format('d M Y H:i') ?? '-',
             'updated_at' => $report->updated_at?->format('d M Y H:i') ?? '-',
             'assignee' => $report->assignee?->name ?? 'Belum ditugaskan',
@@ -191,25 +190,5 @@ class DashboardPimpinan extends Page
             : '-';
 
         return $mapped;
-    }
-
-    private function priorityColor(ReportPriority $priority): string
-    {
-        return match ($priority) {
-            ReportPriority::URGENT => 'danger',
-            ReportPriority::HIGH => 'warning',
-            ReportPriority::MEDIUM => 'info',
-            ReportPriority::LOW => 'gray',
-        };
-    }
-
-    private function priorityLabel(ReportPriority $priority): string
-    {
-        return match ($priority) {
-            ReportPriority::URGENT => 'Mendesak',
-            ReportPriority::HIGH => 'Tinggi',
-            ReportPriority::MEDIUM => 'Sedang',
-            ReportPriority::LOW => 'Rendah',
-        };
     }
 }

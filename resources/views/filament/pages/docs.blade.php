@@ -27,7 +27,7 @@
                 <div class="rounded-xl border border-sky-200 bg-sky-50/70 p-4 text-sky-900 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-100">
                     <p class="text-sm font-semibold">1. Warga Melapor</p>
                     <p class="mt-2 text-sm">
-                        Warga kirim laporan via web atau WhatsApp Fonnte. Status awal: <strong>SUBMITTED</strong>.
+                        Warga kirim laporan via web atau Telegram Bot. Status awal: <strong>SUBMITTED</strong>.
                     </p>
                 </div>
                 <div class="rounded-xl border border-violet-200 bg-violet-50/70 p-4 text-violet-900 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-100">

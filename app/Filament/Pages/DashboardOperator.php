@@ -7,6 +7,7 @@ use App\Enums\ReportStatus;
 use App\Enums\Role;
 use App\Filament\Resources\Reports\ReportResource;
 use App\Models\Report;
+use App\Models\SlaConfig;
 use BackedEnum;
 use Filament\Facades\Filament;
 use Filament\Pages\Page;
@@ -44,7 +45,9 @@ class DashboardOperator extends Page
 
     private function overdueDays(): int
     {
-        return 2;
+        $config = SlaConfig::forPriority(ReportPriority::MEDIUM);
+
+        return max(1, (int) ceil($config->resolution_time_minutes / 1440));
     }
 
     private function buildSummary(?int $userId): array
@@ -54,13 +57,12 @@ class DashboardOperator extends Page
                 ['label' => 'Tugas Aktif', 'value' => 0],
                 ['label' => 'Perlu Tindakan Hari Ini', 'value' => 0],
                 ['label' => 'Sedang Dikerjakan', 'value' => 0],
-                ['label' => 'Belum Update > 2 Hari', 'value' => 0],
+                ['label' => 'Melewati Deadline', 'value' => 0],
                 ['label' => 'Selesai Minggu Ini', 'value' => 0],
             ];
         }
 
         $assignedQuery = Report::query()->where('assignee_id', $userId);
-        $overdueCutoff = now()->subDays($this->overdueDays());
         $activeStatuses = [
             ReportStatus::SUBMITTED,
             ReportStatus::VERIFIED,
@@ -88,10 +90,11 @@ class DashboardOperator extends Page
                 'value' => (clone $assignedQuery)->where('status', ReportStatus::IN_PROGRESS)->count(),
             ],
             [
-                'label' => 'Belum Update > 2 Hari',
+                'label' => 'Melewati Deadline',
                 'value' => (clone $assignedQuery)
-                    ->where('status', ReportStatus::IN_PROGRESS)
-                    ->where('updated_at', '<', $overdueCutoff)
+                    ->whereIn('status', $activeStatuses)
+                    ->whereNotNull('resolution_deadline')
+                    ->where('resolution_deadline', '<', now())
                     ->count(),
             ],
             [
@@ -135,8 +138,6 @@ class DashboardOperator extends Page
             return [];
         }
 
-        $overdueCutoff = now()->subDays($this->overdueDays());
-
         return Report::query()
             ->with(['user', 'assignee'])
             ->where('assignee_id', $userId)
@@ -154,8 +155,8 @@ class DashboardOperator extends Page
                 WHEN 'IN_PROGRESS' THEN 3
                 WHEN 'RESOLVED' THEN 4
                 ELSE 5 END")
-            ->orderByRaw("CASE WHEN status = 'IN_PROGRESS' AND updated_at < ? THEN 0 ELSE 1 END", [$overdueCutoff])
-            ->oldest('updated_at')
+            ->orderByRaw('CASE WHEN resolution_deadline IS NOT NULL AND resolution_deadline < ? THEN 0 ELSE 1 END', [now()])
+            ->oldest('created_at')
             ->limit(6)
             ->get()
             ->map(fn (Report $report): array => $this->mapReport($report, withHint: true))
@@ -184,23 +185,23 @@ class DashboardOperator extends Page
     {
         $status = $report->status;
         $priority = $report->priority;
-        $overdueCutoff = now()->subDays($this->overdueDays());
+        $isOverdue = $report->resolution_deadline
+            && $report->resolution_deadline->isPast()
+            && ! $status->isFinal();
         $mapped = [
             'ticket' => $report->ticket_number,
             'title' => $report->title ?: 'Tanpa judul',
             'location' => $report->location_name ?: 'Lokasi belum diisi',
             'status_label' => $status->label(),
             'status_color' => $status->color(),
-            'priority_label' => $this->priorityLabel($priority),
-            'priority_color' => $this->priorityColor($priority),
+            'priority_label' => $priority->label(),
+            'priority_color' => $priority->color(),
             'created_at' => $report->created_at?->format('d M Y H:i') ?? '-',
             'updated_at' => $report->updated_at?->format('d M Y H:i') ?? '-',
             'assignee' => $report->assignee?->name ?? 'Belum ditugaskan',
             'reporter' => $report->user?->name ?? 'Warga',
             'url' => ReportResource::getUrl('view', ['record' => $report]),
-            'is_overdue' => $status === ReportStatus::IN_PROGRESS
-                && (bool) $report->updated_at
-                && $report->updated_at->lt($overdueCutoff),
+            'is_overdue' => $isOverdue,
         ];
 
         if (! $withHint) {
@@ -217,25 +218,5 @@ class DashboardOperator extends Page
         };
 
         return $mapped;
-    }
-
-    private function priorityColor(ReportPriority $priority): string
-    {
-        return match ($priority) {
-            ReportPriority::URGENT => 'danger',
-            ReportPriority::HIGH => 'warning',
-            ReportPriority::MEDIUM => 'info',
-            ReportPriority::LOW => 'gray',
-        };
-    }
-
-    private function priorityLabel(ReportPriority $priority): string
-    {
-        return match ($priority) {
-            ReportPriority::URGENT => 'Mendesak',
-            ReportPriority::HIGH => 'Tinggi',
-            ReportPriority::MEDIUM => 'Sedang',
-            ReportPriority::LOW => 'Rendah',
-        };
     }
 }

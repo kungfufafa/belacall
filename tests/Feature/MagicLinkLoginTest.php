@@ -4,17 +4,17 @@ namespace Tests\Feature;
 
 use App\Enums\Role;
 use App\Filament\Pages\Auth\Login;
-use App\Models\OtpCode;
 use App\Models\User;
-use App\Services\FonnteService;
-use App\Services\OtpService;
+use App\Notifications\LoginMagicLinkNotification;
+use App\Services\MagicLinkLoginService;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
-use Mockery\MockInterface;
 use Tests\TestCase;
 
-class OtpLoginTest extends TestCase
+class MagicLinkLoginTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -22,16 +22,8 @@ class OtpLoginTest extends TestCase
     {
         parent::setUp();
 
-        // Mock FonnteService to avoid actual API calls
-        $this->mock(FonnteService::class, function (MockInterface $mock) {
-            $mock->shouldReceive('sendText')->andReturn(['status' => true]);
-        });
-
-        // Set the default panel for tests
         Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
-
-    // ==================== EMAIL/PASSWORD LOGIN TESTS ====================
 
     public function test_login_page_displays_email_and_password_by_default(): void
     {
@@ -75,245 +67,136 @@ class OtpLoginTest extends TestCase
         $this->assertGuest();
     }
 
-    // ==================== OTP LOGIN TESTS ====================
-
-    public function test_can_switch_to_otp_login(): void
+    public function test_can_switch_to_magic_link_login(): void
     {
         Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->assertSet('loginMethod', 'otp')
-            ->assertSee('Nomor HP')
-            ->assertSee('Kirim Kode OTP');
+            ->call('switchLoginMethod', 'magic_link')
+            ->assertSet('loginMethod', 'magic_link')
+            ->assertSee('Email')
+            ->assertSee('Kirim Magic Link');
     }
 
-    public function test_can_send_otp_to_valid_phone(): void
+    public function test_can_send_magic_link_to_valid_email(): void
     {
-        Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify')
-            ->assertNotified('OTP Terkirim');
+        Notification::fake();
 
-        $this->assertDatabaseHas('otp_codes', [
-            'phone' => '6281234567890',
-        ]);
-    }
-
-    public function test_phone_is_normalized_correctly(): void
-    {
-        Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '08123456789')
-            ->call('sendOtp');
-
-        $this->assertDatabaseHas('otp_codes', [
-            'phone' => '628123456789',
-        ]);
-    }
-
-    public function test_user_phone_is_normalized_on_save(): void
-    {
         $user = User::factory()->create([
-            'phone' => '0812-345-678',
-        ]);
-
-        $this->assertDatabaseHas('users', [
-            'id' => $user->id,
-            'phone' => '62812345678',
-        ]);
-    }
-
-    public function test_can_verify_valid_otp(): void
-    {
-        $phone = '6281234567890';
-
-        // Create user with proper role
-        $user = User::factory()->create([
-            'phone' => $phone,
+            'email' => 'operator@test.com',
             'role' => Role::OPERATOR,
         ]);
 
-        // Start flow: switch to OTP and send OTP first
-        $component = Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify');
+        Livewire::test(Login::class)
+            ->call('switchLoginMethod', 'magic_link')
+            ->set('data.magic_link_email', 'operator@test.com')
+            ->call('sendMagicLink')
+            ->assertNotified('Cek Email Anda');
 
-        // Get the created OTP from database
-        $otp = OtpCode::where('phone', $phone)->latest()->first();
+        Notification::assertSentTo($user, LoginMagicLinkNotification::class);
+    }
 
-        // Now verify the OTP
-        $component
-            ->set('data.otp', $otp->code)
-            ->call('verifyOtp')
-            ->assertNotified('Login Berhasil')
-            ->assertRedirect();
+    public function test_magic_link_can_login_user_successfully(): void
+    {
+        Notification::fake();
 
+        $user = User::factory()->create([
+            'email' => 'admin@test.com',
+            'role' => Role::ADMIN,
+        ]);
+
+        Livewire::test(Login::class)
+            ->call('switchLoginMethod', 'magic_link')
+            ->set('data.magic_link_email', 'admin@test.com')
+            ->call('sendMagicLink')
+            ->assertNotified('Cek Email Anda');
+
+        $magicLinkUrl = null;
+
+        Notification::assertSentTo($user, LoginMagicLinkNotification::class, function (LoginMagicLinkNotification $notification) use (&$magicLinkUrl): bool {
+            $magicLinkUrl = $notification->loginUrl;
+
+            return str_contains($notification->loginUrl, 'token=');
+        });
+
+        $this->assertNotNull($magicLinkUrl);
+
+        $response = $this->get($magicLinkUrl);
+
+        $response->assertRedirect(Filament::getPanel('admin')->getUrl());
         $this->assertAuthenticatedAs($user);
     }
 
-    public function test_invalid_otp_shows_error(): void
+    public function test_magic_link_is_one_time_use_only(): void
     {
-        $phone = '6281234567890';
-
-        // Start flow: switch to OTP and send OTP first
-        $component = Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify');
-
-        // Now try with wrong OTP
-        $component
-            ->set('data.otp', '999999')
-            ->call('verifyOtp')
-            ->assertNotified('Verifikasi Gagal');
-
-        $this->assertGuest();
-    }
-
-    public function test_expired_otp_shows_error(): void
-    {
-        $phone = '6281234567890';
-
-        // Start flow: switch to OTP and send OTP first
-        $component = Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify');
-
-        // Get the created OTP and make it expired
-        $otp = OtpCode::where('phone', $phone)->latest()->first();
-        $otp->update(['expires_at' => now()->subMinutes(1)]);
-
-        // Now try to verify
-        $component
-            ->set('data.otp', $otp->code)
-            ->call('verifyOtp')
-            ->assertNotified('Verifikasi Gagal');
-
-        $this->assertGuest();
-    }
-
-    public function test_otp_attempts_are_limited(): void
-    {
-        $phone = '6281234567890';
-
-        // Start flow: switch to OTP and send OTP first
-        $component = Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify');
-
-        // Get the created OTP and set max attempts
-        $otp = OtpCode::where('phone', $phone)->latest()->first();
-        $otp->update(['attempts' => 5]);
-
-        // Now try to verify
-        $component
-            ->set('data.otp', $otp->code)
-            ->call('verifyOtp')
-            ->assertNotified('Verifikasi Gagal');
-
-        $this->assertGuest();
-    }
-
-    public function test_new_user_is_created_on_first_login(): void
-    {
-        $phone = '6281234567890';
-
-        // User does not exist
-        $this->assertDatabaseMissing('users', ['phone' => $phone]);
-
-        // Start flow: switch to OTP and send OTP first
-        $component = Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify');
-
-        // Get the created OTP
-        $otp = OtpCode::where('phone', $phone)->latest()->first();
-
-        // Verify OTP - this should create a user but fail panel access
-        $component
-            ->set('data.otp', $otp->code)
-            ->call('verifyOtp');
-
-        // User should be created with WARGA role
-        $this->assertDatabaseHas('users', [
-            'phone' => $phone,
-            'role' => Role::WARGA->value,
+        $user = User::factory()->create([
+            'email' => 'admin@test.com',
+            'role' => Role::ADMIN,
         ]);
+
+        $magicLinkLoginService = app(MagicLinkLoginService::class);
+        $magicLinkUrl = $magicLinkLoginService->issue($user);
+
+        $this->get($magicLinkUrl)
+            ->assertRedirect(Filament::getPanel('admin')->getUrl());
+
+        $this->assertAuthenticatedAs($user);
+
+        Auth::logout();
+
+        $this->get($magicLinkUrl)->assertForbidden();
+
+        $this->assertGuest();
     }
 
-    public function test_warga_cannot_access_admin_panel(): void
+    public function test_tampered_magic_link_is_rejected(): void
     {
-        $phone = '6281234567890';
+        $user = User::factory()->create([
+            'email' => 'admin@test.com',
+            'role' => Role::ADMIN,
+        ]);
 
-        // Create user with WARGA role
-        User::factory()->create([
-            'phone' => $phone,
+        $magicLinkLoginService = app(MagicLinkLoginService::class);
+        $magicLinkUrl = $magicLinkLoginService->issue($user);
+
+        $tamperedUrl = preg_replace('/token=[^&]+/', 'token=invalid-token', $magicLinkUrl);
+
+        $this->assertIsString($tamperedUrl);
+
+        $this->get($tamperedUrl)->assertForbidden();
+
+        $this->assertGuest();
+    }
+
+    public function test_warga_does_not_receive_magic_link_email(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'email' => 'warga@test.com',
             'role' => Role::WARGA,
         ]);
 
-        // Start flow: switch to OTP and send OTP first
-        $component = Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify');
+        Livewire::test(Login::class)
+            ->call('switchLoginMethod', 'magic_link')
+            ->set('data.magic_link_email', 'warga@test.com')
+            ->call('sendMagicLink')
+            ->assertNotified('Cek Email Anda');
 
-        // Get the created OTP
-        $otp = OtpCode::where('phone', $phone)->latest()->first();
+        Notification::assertNothingSent();
 
-        // Verify OTP
-        $component
-            ->set('data.otp', $otp->code)
-            ->call('verifyOtp')
-            ->assertNotified('Akses Ditolak');
+        $magicLinkLoginService = app(MagicLinkLoginService::class);
+        $magicLinkUrl = $magicLinkLoginService->issue($user);
+
+        $this->get($magicLinkUrl)->assertForbidden();
 
         $this->assertGuest();
-    }
-
-    public function test_can_go_back_to_change_phone(): void
-    {
-        // Start flow: switch to OTP and send OTP first to get to verify step
-        Livewire::test(Login::class)
-            ->call('switchLoginMethod', 'otp')
-            ->set('data.phone', '081234567890')
-            ->call('sendOtp')
-            ->assertSet('otpStep', 'verify')
-            ->call('goBack')
-            ->assertSet('otpStep', 'phone');
-    }
-
-    public function test_cooldown_prevents_immediate_resend(): void
-    {
-        $phone = '6281234567890';
-
-        // Create recent OTP
-        OtpCode::create([
-            'phone' => $phone,
-            'code' => '123456',
-            'expires_at' => now()->addMinutes(5),
-            'created_at' => now(),
-        ]);
-
-        $otpService = app(OtpService::class);
-        $this->assertFalse($otpService->canRequestOtp($phone));
     }
 
     public function test_can_switch_between_login_methods(): void
     {
         Livewire::test(Login::class)
             ->assertSet('loginMethod', 'email')
-            ->call('switchLoginMethod', 'otp')
-            ->assertSet('loginMethod', 'otp')
+            ->call('switchLoginMethod', 'magic_link')
+            ->assertSet('loginMethod', 'magic_link')
             ->call('switchLoginMethod', 'email')
             ->assertSet('loginMethod', 'email');
     }

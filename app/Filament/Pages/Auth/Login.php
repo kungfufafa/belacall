@@ -2,7 +2,9 @@
 
 namespace App\Filament\Pages\Auth;
 
-use App\Services\OtpService;
+use App\Models\User;
+use App\Notifications\LoginMagicLinkNotification;
+use App\Services\MagicLinkLoginService;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use DanHarrin\LivewireRateLimiting\WithRateLimiting;
 use Filament\Actions\Action;
@@ -24,9 +26,7 @@ use Illuminate\Auth\SessionGuard;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use Livewire\Attributes\Locked;
 use SensitiveParameter;
 
 class Login extends SimplePage
@@ -38,16 +38,7 @@ class Login extends SimplePage
      */
     public ?array $data = [];
 
-    public string $loginMethod = 'email'; // 'email' or 'otp'
-
-    #[Locked]
-    public string $otpStep = 'phone'; // 'phone' or 'verify'
-
-    #[Locked]
-    public ?string $phone = null;
-
-    #[Locked]
-    public int $cooldown = 0;
+    public string $loginMethod = 'email'; // 'email' or 'magic_link'
 
     public function mount(): void
     {
@@ -65,8 +56,8 @@ class Login extends SimplePage
 
     public function getHeading(): string|Htmlable|null
     {
-        if ($this->loginMethod === 'otp' && $this->otpStep === 'verify') {
-            return 'Verifikasi Kode OTP';
+        if ($this->loginMethod === 'magic_link') {
+            return 'Masuk dengan Email Magic Link';
         }
 
         return 'Masuk ke Akun';
@@ -74,8 +65,8 @@ class Login extends SimplePage
 
     public function getSubheading(): string|Htmlable|null
     {
-        if ($this->loginMethod === 'otp' && $this->otpStep === 'verify') {
-            return "Kode OTP telah dikirim ke {$this->phone}";
+        if ($this->loginMethod === 'magic_link') {
+            return 'Kami akan mengirim tautan login ke email Anda.';
         }
 
         return null;
@@ -91,13 +82,10 @@ class Login extends SimplePage
     {
         return $schema
             ->components([
-                // Email/Password form components
                 $this->getEmailFormComponent(),
                 $this->getPasswordFormComponent(),
                 $this->getRememberFormComponent(),
-                // OTP form components
-                $this->getPhoneFormComponent(),
-                $this->getOtpFormComponent(),
+                $this->getMagicLinkEmailFormComponent(),
             ]);
     }
 
@@ -130,31 +118,15 @@ class Login extends SimplePage
             ->visible(fn (): bool => $this->loginMethod === 'email');
     }
 
-    protected function getPhoneFormComponent(): Component
+    protected function getMagicLinkEmailFormComponent(): Component
     {
-        return TextInput::make('phone')
-            ->label('Nomor HP')
-            ->placeholder('08xxxxxxxxxx')
-            ->tel()
+        return TextInput::make('magic_link_email')
+            ->label('Email')
+            ->email()
             ->required()
-            ->maxLength(15)
+            ->autocomplete()
             ->autofocus()
-            ->extraInputAttributes(['inputmode' => 'numeric'])
-            ->visible(fn (): bool => $this->loginMethod === 'otp' && $this->otpStep === 'phone');
-    }
-
-    protected function getOtpFormComponent(): Component
-    {
-        return Group::make([
-            TextInput::make('otp')
-                ->label('Kode OTP')
-                ->placeholder('Masukkan 6 digit kode')
-                ->required()
-                ->maxLength(6)
-                ->autofocus()
-                ->extraInputAttributes(['inputmode' => 'numeric']),
-        ])
-            ->visible(fn (): bool => $this->loginMethod === 'otp' && $this->otpStep === 'verify');
+            ->visible(fn (): bool => $this->loginMethod === 'magic_link');
     }
 
     public function content(Schema $schema): Schema
@@ -163,8 +135,7 @@ class Login extends SimplePage
             ->components([
                 $this->getLoginMethodToggle(),
                 $this->getEmailFormContentComponent(),
-                $this->getOtpPhoneFormContentComponent(),
-                $this->getOtpVerifyFormContentComponent(),
+                $this->getMagicLinkFormContentComponent(),
             ]);
     }
 
@@ -176,12 +147,12 @@ class Login extends SimplePage
                     ->label('Email & Password')
                     ->color(fn (): string => $this->loginMethod === 'email' ? 'primary' : 'gray')
                     ->action(fn () => $this->switchLoginMethod('email')),
-                Action::make('switchToOtp')
-                    ->label('OTP WhatsApp')
-                    ->color(fn (): string => $this->loginMethod === 'otp' ? 'primary' : 'gray')
-                    ->action(fn () => $this->switchLoginMethod('otp')),
+                Action::make('switchToMagicLink')
+                    ->label('Email Magic Link')
+                    ->color(fn (): string => $this->loginMethod === 'magic_link' ? 'primary' : 'gray')
+                    ->action(fn () => $this->switchLoginMethod('magic_link')),
             ])->fullWidth(),
-        ])->visible(fn (): bool => $this->otpStep === 'phone');
+        ]);
     }
 
     public function getEmailFormContentComponent(): Component
@@ -196,28 +167,16 @@ class Login extends SimplePage
             ->visible(fn (): bool => $this->loginMethod === 'email');
     }
 
-    public function getOtpPhoneFormContentComponent(): Component
+    public function getMagicLinkFormContentComponent(): Component
     {
         return Form::make([EmbeddedSchema::make('form')])
-            ->id('phoneForm')
-            ->livewireSubmitHandler('sendOtp')
+            ->id('magicLinkForm')
+            ->livewireSubmitHandler('sendMagicLink')
             ->footer([
-                Actions::make($this->getPhoneFormActions())
+                Actions::make($this->getMagicLinkFormActions())
                     ->fullWidth(),
             ])
-            ->visible(fn (): bool => $this->loginMethod === 'otp' && $this->otpStep === 'phone');
-    }
-
-    public function getOtpVerifyFormContentComponent(): Component
-    {
-        return Form::make([EmbeddedSchema::make('form')])
-            ->id('otpForm')
-            ->livewireSubmitHandler('verifyOtp')
-            ->footer([
-                Actions::make($this->getOtpFormActions())
-                    ->fullWidth(),
-            ])
-            ->visible(fn (): bool => $this->loginMethod === 'otp' && $this->otpStep === 'verify');
+            ->visible(fn (): bool => $this->loginMethod === 'magic_link');
     }
 
     /**
@@ -233,22 +192,10 @@ class Login extends SimplePage
     /**
      * @return array<Action>
      */
-    protected function getPhoneFormActions(): array
+    protected function getMagicLinkFormActions(): array
     {
         return [
-            $this->getSendOtpAction(),
-        ];
-    }
-
-    /**
-     * @return array<Action>
-     */
-    protected function getOtpFormActions(): array
-    {
-        return [
-            $this->getVerifyOtpAction(),
-            $this->getBackAction(),
-            $this->getResendOtpAction(),
+            $this->getSendMagicLinkAction(),
         ];
     }
 
@@ -259,46 +206,18 @@ class Login extends SimplePage
             ->submit('authenticate');
     }
 
-    protected function getSendOtpAction(): Action
+    protected function getSendMagicLinkAction(): Action
     {
-        return Action::make('sendOtp')
-            ->label('Kirim Kode OTP')
-            ->submit('sendOtp');
-    }
-
-    protected function getVerifyOtpAction(): Action
-    {
-        return Action::make('verifyOtp')
-            ->label('Verifikasi')
-            ->submit('verifyOtp');
-    }
-
-    protected function getBackAction(): Action
-    {
-        return Action::make('back')
-            ->label('Ganti Nomor')
-            ->color('gray')
-            ->action('goBack');
-    }
-
-    protected function getResendOtpAction(): Action
-    {
-        return Action::make('resendOtp')
-            ->label(fn (): string => $this->cooldown > 0 ? "Kirim Ulang ({$this->cooldown}s)" : 'Kirim Ulang OTP')
-            ->color('gray')
-            ->link()
-            ->disabled(fn (): bool => $this->cooldown > 0)
-            ->action('resendOtp');
+        return Action::make('sendMagicLink')
+            ->label('Kirim Magic Link')
+            ->submit('sendMagicLink');
     }
 
     public function switchLoginMethod(string $method): void
     {
         $this->loginMethod = $method;
-        $this->otpStep = 'phone';
         $this->form->fill();
     }
-
-    // ==================== EMAIL/PASSWORD AUTHENTICATION ====================
 
     public function authenticate(): ?LoginResponse
     {
@@ -341,6 +260,40 @@ class Login extends SimplePage
         return app(LoginResponse::class);
     }
 
+    public function sendMagicLink(): void
+    {
+        try {
+            $this->rateLimit(5);
+        } catch (TooManyRequestsException $exception) {
+            Notification::make()
+                ->title('Terlalu Banyak Percobaan')
+                ->body("Silakan coba lagi dalam {$exception->secondsUntilAvailable} detik.")
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        $data = $this->form->getState();
+        $email = mb_strtolower(trim((string) ($data['magic_link_email'] ?? '')));
+
+        $user = User::query()->where('email', $email)->first();
+        $panel = Filament::getCurrentOrDefaultPanel();
+
+        if (($user instanceof User) && $user->canAccessPanel($panel)) {
+            $magicLinkLoginService = app(MagicLinkLoginService::class);
+            $loginUrl = $magicLinkLoginService->issue($user);
+
+            $user->notify(new LoginMagicLinkNotification($loginUrl));
+        }
+
+        Notification::make()
+            ->title('Cek Email Anda')
+            ->body('Jika email terdaftar, tautan login sudah dikirim.')
+            ->success()
+            ->send();
+    }
+
     protected function getRateLimitedNotification(TooManyRequestsException $exception): ?Notification
     {
         return Notification::make()
@@ -374,180 +327,5 @@ class Login extends SimplePage
             'email' => $data['email'],
             'password' => $data['password'],
         ];
-    }
-
-    // ==================== OTP AUTHENTICATION ====================
-
-    public function sendOtp(): void
-    {
-        try {
-            $this->rateLimit(5);
-        } catch (TooManyRequestsException $exception) {
-            Notification::make()
-                ->title('Terlalu Banyak Percobaan')
-                ->body("Silakan coba lagi dalam {$exception->secondsUntilAvailable} detik.")
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $data = $this->form->getState();
-        $phone = $this->normalizePhone($data['phone']);
-
-        $otpService = app(OtpService::class);
-
-        if (! $otpService->canRequestOtp($phone)) {
-            $remaining = $otpService->getRemainingCooldown($phone);
-            Notification::make()
-                ->title('Mohon Tunggu')
-                ->body("Anda dapat meminta OTP baru dalam {$remaining} detik.")
-                ->warning()
-                ->send();
-
-            return;
-        }
-
-        $result = $otpService->send($phone);
-
-        if (! $result) {
-            Notification::make()
-                ->title('Gagal Mengirim OTP')
-                ->body('Terjadi kesalahan saat mengirim OTP. Silakan coba lagi.')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $this->phone = $phone;
-        $this->otpStep = 'verify';
-        $this->cooldown = 60;
-
-        Notification::make()
-            ->title('OTP Terkirim')
-            ->body('Kode OTP telah dikirim ke nomor WhatsApp Anda.')
-            ->success()
-            ->send();
-    }
-
-    public function verifyOtp(): void
-    {
-        try {
-            $this->rateLimit(10);
-        } catch (TooManyRequestsException $exception) {
-            Notification::make()
-                ->title('Terlalu Banyak Percobaan')
-                ->body("Silakan coba lagi dalam {$exception->secondsUntilAvailable} detik.")
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $data = $this->form->getState();
-
-        $otpService = app(OtpService::class);
-        $result = $otpService->verify($this->phone, $data['otp']);
-
-        if (! $result['valid']) {
-            Notification::make()
-                ->title('Verifikasi Gagal')
-                ->body($result['message'])
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        $user = $result['user'];
-
-        // Check if user can access panel
-        $panel = Filament::getCurrentPanel();
-        if ($panel && ! $user->canAccessPanel($panel)) {
-            Notification::make()
-                ->title('Akses Ditolak')
-                ->body('Anda tidak memiliki akses ke panel ini.')
-                ->danger()
-                ->send();
-
-            return;
-        }
-
-        Auth::login($user, remember: true);
-
-        session()->regenerate();
-
-        Notification::make()
-            ->title('Login Berhasil')
-            ->body('Selamat datang!')
-            ->success()
-            ->send();
-
-        redirect()->intended(Filament::getUrl());
-    }
-
-    public function resendOtp(): void
-    {
-        $otpService = app(OtpService::class);
-
-        if (! $otpService->canRequestOtp($this->phone)) {
-            $remaining = $otpService->getRemainingCooldown($this->phone);
-            Notification::make()
-                ->title('Mohon Tunggu')
-                ->body("Anda dapat meminta OTP baru dalam {$remaining} detik.")
-                ->warning()
-                ->send();
-
-            return;
-        }
-
-        $result = $otpService->send($this->phone);
-
-        if ($result) {
-            $this->cooldown = 60;
-            Notification::make()
-                ->title('OTP Terkirim')
-                ->body('Kode OTP baru telah dikirim.')
-                ->success()
-                ->send();
-        } else {
-            Notification::make()
-                ->title('Gagal')
-                ->body('Gagal mengirim OTP. Silakan coba lagi.')
-                ->danger()
-                ->send();
-        }
-    }
-
-    public function goBack(): void
-    {
-        $this->otpStep = 'phone';
-        $this->data['otp'] = null;
-    }
-
-    protected function normalizePhone(string $phone): string
-    {
-        // Remove non-numeric characters
-        $phone = preg_replace('/[^0-9]/', '', $phone);
-
-        // Convert 08xxx to 628xxx
-        if (str_starts_with($phone, '0')) {
-            $phone = '62'.substr($phone, 1);
-        }
-
-        // Add 62 if not present
-        if (! str_starts_with($phone, '62')) {
-            $phone = '62'.$phone;
-        }
-
-        return $phone;
-    }
-
-    public function decrementCooldown(): void
-    {
-        if ($this->cooldown > 0) {
-            $this->cooldown--;
-        }
     }
 }

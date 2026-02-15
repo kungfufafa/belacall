@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ReportPriority;
 use App\Enums\ReportStatus;
-use App\Http\Requests\RequestTrackingOtpRequest;
 use App\Http\Requests\StoreWebReportRequest;
 use App\Http\Requests\SubmitReportRevisionRequest;
-use App\Http\Requests\VerifyTrackingOtpRequest;
+use App\Http\Requests\VerifyTrackingPhoneRequest;
+use App\Models\EmergencyShortcut;
 use App\Models\Report;
 use App\Models\ReportHistory;
 use App\Models\User;
-use App\Services\FonnteService;
-use App\Services\OtpService;
+use App\Services\TelegramService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +26,9 @@ class WebReportController extends Controller
 
     public function index(): View
     {
-        return view('landing');
+        $emergencyShortcuts = EmergencyShortcut::query()->active()->get();
+
+        return view('landing', compact('emergencyShortcuts'));
     }
 
     public function create(): View
@@ -34,14 +36,14 @@ class WebReportController extends Controller
         return view('reports.create');
     }
 
-    public function store(StoreWebReportRequest $request, FonnteService $fonnteService): RedirectResponse
+    public function store(StoreWebReportRequest $request, TelegramService $telegramService): RedirectResponse
     {
         $validated = $request->validated();
 
         $phone = $this->normalizePhone($validated['phone']);
         if (! $phone) {
             throw ValidationException::withMessages([
-                'phone' => 'Nomor WhatsApp tidak valid.',
+                'phone' => 'Nomor HP tidak valid.',
             ]);
         }
 
@@ -59,7 +61,7 @@ class WebReportController extends Controller
             'latitude' => $validated['latitude'] ?? null,
             'longitude' => $validated['longitude'] ?? null,
             'status' => ReportStatus::SUBMITTED->value,
-            'priority' => 'Medium',
+            'priority' => ReportPriority::MEDIUM->value,
         ]);
 
         if ($request->hasFile('evidence')) {
@@ -72,7 +74,10 @@ class WebReportController extends Controller
         }
 
         $msg = "✅ Laporan Web Diterima!\nTiket: *{$report->ticket_number}*\nSimpan nomor ini untuk tracking.";
-        $fonnteService->sendText($phone, $msg);
+        $user = User::where('phone', $phone)->first();
+        if ($user?->telegram_chat_id) {
+            $telegramService->sendText($user->telegram_chat_id, $msg);
+        }
 
         return redirect()->route('report.tracking.view', ['ticket' => $report->ticket_number])
             ->with('success', 'Laporan berhasil dikirim! Silakan simpan nomor tiket Anda.');
@@ -89,7 +94,6 @@ class WebReportController extends Controller
         $canRevise = false;
         $revisionNote = null;
         $isTrackingVerified = false;
-        $pendingTrackingPhone = null;
 
         if ($ticket) {
             $report = Report::with(['evidences', 'histories.user', 'user'])
@@ -99,7 +103,6 @@ class WebReportController extends Controller
 
         if ($report) {
             $isTrackingVerified = $this->hasTrackingAccess($request, $report);
-            $pendingTrackingPhone = $this->trackingPendingPhone($request, $ticket);
 
             if ($isTrackingVerified) {
                 $currentStatus = $this->resolveCurrentStatus($report);
@@ -123,12 +126,11 @@ class WebReportController extends Controller
             'evidenceItems',
             'canRevise',
             'revisionNote',
-            'isTrackingVerified',
-            'pendingTrackingPhone'
+            'isTrackingVerified'
         ));
     }
 
-    public function requestTrackingOtp(RequestTrackingOtpRequest $request, OtpService $otpService): RedirectResponse
+    public function verifyTrackingPhone(VerifyTrackingPhoneRequest $request): RedirectResponse
     {
         $validated = $request->validated();
         $ticket = $validated['ticket'];
@@ -147,67 +149,13 @@ class WebReportController extends Controller
         if (! $phone || $phone !== $report->user->phone) {
             return redirect()->route('report.tracking.view', ['ticket' => $ticket])
                 ->withInput(['phone' => $validated['phone']])
-                ->with('error', 'Nomor WhatsApp tidak sesuai dengan data pelapor.');
-        }
-
-        if (! $otpService->canRequestOtp($phone)) {
-            $remaining = $otpService->getRemainingCooldown($phone);
-
-            return redirect()->route('report.tracking.view', ['ticket' => $ticket])
-                ->withInput(['phone' => $validated['phone']])
-                ->with('error', "Tunggu {$remaining} detik sebelum minta OTP lagi.");
-        }
-
-        if (! $otpService->send($phone)) {
-            return redirect()->route('report.tracking.view', ['ticket' => $ticket])
-                ->withInput(['phone' => $validated['phone']])
-                ->with('error', 'Gagal mengirim OTP. Coba lagi beberapa saat.');
-        }
-
-        $request->session()->put($this->trackingPendingSessionKey($ticket), $phone);
-        $request->session()->forget($this->trackingAccessSessionKey($ticket));
-
-        return redirect()->route('report.tracking.view', ['ticket' => $ticket])
-            ->with('success', 'Kode OTP sudah dikirim ke WhatsApp Anda.');
-    }
-
-    public function verifyTrackingOtp(VerifyTrackingOtpRequest $request, OtpService $otpService): RedirectResponse
-    {
-        $validated = $request->validated();
-        $ticket = $validated['ticket'];
-
-        $report = Report::query()
-            ->with('user')
-            ->where('ticket_number', $ticket)
-            ->first();
-
-        if (! $report || ! $report->user?->phone) {
-            return redirect()->route('report.tracking.view', ['ticket' => $ticket])
-                ->with('error', 'Nomor tiket tidak ditemukan.');
-        }
-
-        $phone = $this->normalizePhone($validated['phone']);
-        $pendingPhone = $request->session()->get($this->trackingPendingSessionKey($ticket));
-
-        if (! $phone || $phone !== $report->user->phone || $pendingPhone !== $phone) {
-            return redirect()->route('report.tracking.view', ['ticket' => $ticket])
-                ->withInput(['phone' => $validated['phone']])
-                ->with('error', 'Silakan minta OTP ulang terlebih dahulu.');
-        }
-
-        $result = $otpService->verify($phone, $validated['otp']);
-
-        if (! $result['valid']) {
-            return redirect()->route('report.tracking.view', ['ticket' => $ticket])
-                ->withInput(['phone' => $validated['phone']])
-                ->with('error', $result['message']);
+                ->with('error', 'Nomor HP tidak sesuai dengan data pelapor.');
         }
 
         $request->session()->put($this->trackingAccessSessionKey($ticket), [
             'phone' => $phone,
             'verified_at' => now()->getTimestamp(),
         ]);
-        $request->session()->forget($this->trackingPendingSessionKey($ticket));
 
         return redirect()->route('report.tracking.view', ['ticket' => $ticket])
             ->with('success', 'Verifikasi berhasil. Detail laporan sudah dibuka.');
@@ -230,7 +178,7 @@ class WebReportController extends Controller
 
         if (! $this->hasTrackingAccess($request, $report)) {
             return redirect()->route('report.tracking.view', ['ticket' => $ticket])
-                ->with('error', 'Verifikasi OTP diperlukan sebelum mengirim perbaikan.');
+                ->with('error', 'Verifikasi nomor HP diperlukan sebelum mengirim perbaikan.');
         }
 
         if ($report->status !== ReportStatus::NEEDS_REVISION) {
@@ -510,24 +458,8 @@ class WebReportController extends Controller
         return true;
     }
 
-    private function trackingPendingPhone(Request $request, ?string $ticket): ?string
-    {
-        if (! $ticket) {
-            return null;
-        }
-
-        $phone = $request->session()->get($this->trackingPendingSessionKey($ticket));
-
-        return is_string($phone) ? $phone : null;
-    }
-
     private function trackingAccessSessionKey(string $ticket): string
     {
         return 'tracking_access_'.$ticket;
-    }
-
-    private function trackingPendingSessionKey(string $ticket): string
-    {
-        return 'tracking_pending_'.$ticket;
     }
 }

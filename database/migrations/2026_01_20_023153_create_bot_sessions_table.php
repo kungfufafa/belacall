@@ -10,10 +10,10 @@ return new class extends Migration
     {
         Schema::create('bot_sessions', function (Blueprint $table) {
             $table->id();
-            $table->string('phone_number')->unique(); // Identifier user WA
-            $table->string('state')->default('IDLE'); 
+            $table->string('phone_number')->unique();
+            $table->string('state')->default('IDLE');
             // States: IDLE, WAITING_REPORT_TITLE, WAITING_REPORT_PHOTO, WAITING_REPORT_LOCATION
-            
+
             $table->json('temp_data')->nullable(); // Simpan data sementara (draft title, photo path)
             $table->timestamp('last_interaction_at');
             $table->timestamps();

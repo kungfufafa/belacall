@@ -69,26 +69,24 @@ const baseUrl = trimTrailingSlashes(__ENV.BASE_URL || 'http://127.0.0.1:8000');
 const basePath = normalizeBasePath(__ENV.BASE_PATH || '');
 const requestTimeout = __ENV.REQUEST_TIMEOUT || '30s';
 
-const webhookToken = String(__ENV.WEBHOOK_TOKEN || '');
-const webhookFixedSender = String(__ENV.WEBHOOK_FIXED_SENDER || '6281234567890');
-const webhookUseFixedSender = envBool('WEBHOOK_USE_FIXED_SENDER', false);
-const webhookAllowedStatuses = parseStatusSet(__ENV.WEBHOOK_ALLOWED_STATUSES || '200,401,422,429');
+const webhookSecretToken = String(__ENV.TELEGRAM_WEBHOOK_SECRET || __ENV.WEBHOOK_TOKEN || '');
+const webhookFixedChatId = String(__ENV.WEBHOOK_FIXED_CHAT_ID || '700000001');
+const webhookFixedUserId = String(__ENV.WEBHOOK_FIXED_USER_ID || webhookFixedChatId);
+const webhookFixedPhone = String(__ENV.WEBHOOK_FIXED_PHONE || '6281234567890');
+const webhookUseFixedChat = envBool('WEBHOOK_USE_FIXED_CHAT', false);
+const webhookSendContact = envBool('WEBHOOK_SEND_CONTACT', true);
+const webhookAllowedStatuses = parseStatusSet(__ENV.WEBHOOK_ALLOWED_STATUSES || '200,401,429');
 const webhookMessages = parseList(
     __ENV.WEBHOOK_MESSAGES || 'LAPOR,Jalan rusak di depan balai desa,2,Lampu jalan mati sejak kemarin'
 );
 
 const reportAllowedStatuses = parseStatusSet(__ENV.REPORT_ALLOWED_STATUSES || '302,303');
-const otpRequestAllowedStatuses = parseStatusSet(__ENV.OTP_REQUEST_ALLOWED_STATUSES || '302,303');
-const otpVerifyAllowedStatuses = parseStatusSet(__ENV.OTP_VERIFY_ALLOWED_STATUSES || '302,303');
+const trackingVerifyPhoneAllowedStatuses = parseStatusSet(__ENV.TRACKING_VERIFY_PHONE_ALLOWED_STATUSES || '302,303');
 
 const expectedStatus200 = expectedStatusesFromSet(new Set([200]), [200]);
 const expectedReportSubmitStatuses = expectedStatusesFromSet(reportAllowedStatuses, [302, 303]);
-const expectedOtpRequestStatuses = expectedStatusesFromSet(otpRequestAllowedStatuses, [302, 303]);
-const expectedOtpVerifyStatuses = expectedStatusesFromSet(otpVerifyAllowedStatuses, [302, 303]);
-const expectedWebhookStatuses = expectedStatusesFromSet(webhookAllowedStatuses, [200, 401, 422, 429]);
-
-const otpCode = String(__ENV.OTP_CODE || '000000');
-const enableOtpVerify = envBool('ENABLE_OTP_VERIFY', true);
+const expectedTrackingVerifyPhoneStatuses = expectedStatusesFromSet(trackingVerifyPhoneAllowedStatuses, [302, 303]);
+const expectedWebhookStatuses = expectedStatusesFromSet(webhookAllowedStatuses, [200, 401, 429]);
 
 const enableHealthScenario = envBool('ENABLE_HEALTH_SCENARIO', true);
 const enableReportScenario = envBool('ENABLE_REPORT_SCENARIO', true);
@@ -139,7 +137,7 @@ if (enableReportScenario) {
 }
 
 if (enableTrackingScenario) {
-    scenarios.tracking_otp = {
+    scenarios.tracking_phone = {
         executor: 'constant-arrival-rate',
         exec: 'trackingScenario',
         rate: trackingRate,
@@ -147,7 +145,7 @@ if (enableTrackingScenario) {
         duration,
         preAllocatedVUs,
         maxVUs,
-        tags: { scenario: 'tracking_otp' },
+        tags: { scenario: 'tracking_phone' },
     };
 }
 
@@ -181,7 +179,7 @@ export const options = {
 };
 
 const reportsSubmitted = new Counter('reports_submitted');
-const trackingOtpRequests = new Counter('tracking_otp_requests');
+const trackingPhoneVerifications = new Counter('tracking_phone_verifications');
 const webhookCalls = new Counter('webhook_calls');
 const businessFailures = new Rate('business_failures');
 const healthFlowDuration = new Trend('health_flow_duration', true);
@@ -238,16 +236,10 @@ export function trackingScenario() {
 
     const created = createReport();
     if (created.ok) {
-        const otpRequested = requestTrackingOtp(created.ticket, created.phone);
-
-        if (otpRequested) {
-            trackingOtpRequests.add(1);
-
-            if (enableOtpVerify) {
-                success = verifyTrackingOtp(created.ticket, created.phone);
-            } else {
-                success = true;
-            }
+        const phoneVerified = verifyTrackingPhone(created.ticket, created.phone);
+        if (phoneVerified) {
+            trackingPhoneVerifications.add(1);
+            success = true;
         }
     }
 
@@ -260,32 +252,47 @@ export function webhookScenario() {
     const startedAt = Date.now();
     webhookCalls.add(1);
 
-    const sender = webhookUseFixedSender ? webhookFixedSender : randomWebhookSender();
+    const chatId = webhookUseFixedChat ? webhookFixedChatId : randomTelegramChatId();
+    const userId = webhookUseFixedChat ? webhookFixedUserId : chatId;
+    const phone = webhookUseFixedChat ? webhookFixedPhone : randomTelegramPhone();
     const message = randomFrom(webhookMessages);
-    const payload = JSON.stringify({
-        sender,
-        message,
-        name: `k6-${exec.vu.idInTest}`,
-    });
-
     const headers = {
         Accept: 'application/json',
         'Content-Type': 'application/json',
     };
 
-    if (webhookToken !== '') {
-        headers['X-Fonnte-Token'] = webhookToken;
+    if (webhookSecretToken !== '') {
+        headers['X-Telegram-Bot-Api-Secret-Token'] = webhookSecretToken;
     }
 
+    let success = true;
+
+    if (webhookSendContact) {
+        const contactPayload = JSON.stringify(buildTelegramContactPayload(chatId, userId, phone));
+        const contactResponse = http.post(
+            buildUrl('/webhook/telegram'),
+            contactPayload,
+            jsonParams('POST /webhook/telegram (contact)', headers, expectedWebhookStatuses)
+        );
+
+        const contactOk = check(contactResponse, {
+            'POST /webhook/telegram (contact) allowed status': (result) => webhookAllowedStatuses.has(result.status),
+        });
+
+        success = success && contactOk;
+    }
+
+    const payload = JSON.stringify(buildTelegramTextPayload(chatId, userId, message));
     const response = http.post(
-        buildUrl('/webhook/fonnte'),
+        buildUrl('/webhook/telegram'),
         payload,
-        jsonParams('POST /webhook/fonnte', headers, expectedWebhookStatuses)
+        jsonParams('POST /webhook/telegram (text)', headers, expectedWebhookStatuses)
     );
 
-    const success = check(response, {
-        'POST /webhook/fonnte allowed status': (result) => webhookAllowedStatuses.has(result.status),
+    const textOk = check(response, {
+        'POST /webhook/telegram (text) allowed status': (result) => webhookAllowedStatuses.has(result.status),
     });
+    success = success && textOk;
 
     webhookFlowDuration.add(Date.now() - startedAt);
     businessFailures.add(!success);
@@ -347,7 +354,7 @@ function createReport() {
     };
 }
 
-function requestTrackingOtp(ticket, phone) {
+function verifyTrackingPhone(ticket, phone) {
     const trackingPageResponse = http.get(
         buildUrl(`/tracking?ticket=${encodeURIComponent(ticket)}`),
         htmlParams('GET /tracking', expectedStatus200)
@@ -367,7 +374,7 @@ function requestTrackingOtp(ticket, phone) {
     }
 
     const response = http.post(
-        buildUrl('/tracking/request-otp'),
+        buildUrl('/tracking/verify-phone'),
         {
             _token: csrfToken,
             ticket,
@@ -375,52 +382,13 @@ function requestTrackingOtp(ticket, phone) {
         },
         formParams(
             `/tracking?ticket=${encodeURIComponent(ticket)}`,
-            'POST /tracking/request-otp',
-            expectedOtpRequestStatuses
+            'POST /tracking/verify-phone',
+            expectedTrackingVerifyPhoneStatuses
         )
     );
 
     return check(response, {
-        'POST /tracking/request-otp allowed status': (result) => otpRequestAllowedStatuses.has(result.status),
-    });
-}
-
-function verifyTrackingOtp(ticket, phone) {
-    const trackingPageResponse = http.get(
-        buildUrl(`/tracking?ticket=${encodeURIComponent(ticket)}`),
-        htmlParams('GET /tracking for verify', expectedStatus200)
-    );
-
-    const trackingPageOk = check(trackingPageResponse, {
-        'GET /tracking for verify status is 200': (response) => response.status === 200,
-    });
-
-    if (!trackingPageOk) {
-        return false;
-    }
-
-    const csrfToken = extractCsrfToken(trackingPageResponse.body);
-    if (!csrfToken) {
-        return false;
-    }
-
-    const response = http.post(
-        buildUrl('/tracking/verify-otp'),
-        {
-            _token: csrfToken,
-            ticket,
-            phone,
-            otp: otpCode,
-        },
-        formParams(
-            `/tracking?ticket=${encodeURIComponent(ticket)}`,
-            'POST /tracking/verify-otp',
-            expectedOtpVerifyStatuses
-        )
-    );
-
-    return check(response, {
-        'POST /tracking/verify-otp allowed status': (result) => otpVerifyAllowedStatuses.has(result.status),
+        'POST /tracking/verify-phone allowed status': (result) => trackingVerifyPhoneAllowedStatuses.has(result.status),
     });
 }
 
@@ -554,8 +522,64 @@ function randomLocalPhone() {
     return `08${randomDigits(10)}`;
 }
 
-function randomWebhookSender() {
+function randomTelegramChatId() {
+    return `7${randomDigits(8)}`;
+}
+
+function randomTelegramPhone() {
     return `628${randomDigits(9)}`;
+}
+
+function buildTelegramContactPayload(chatId, userId, phoneNumber) {
+    return {
+        update_id: randomUpdateId(),
+        message: {
+            message_id: randomMessageId(),
+            date: Math.floor(Date.now() / 1000),
+            chat: {
+                id: chatId,
+                type: 'private',
+            },
+            from: {
+                id: userId,
+                is_bot: false,
+                first_name: `k6-${exec.vu.idInTest}`,
+            },
+            contact: {
+                phone_number: phoneNumber,
+                first_name: `k6-${exec.vu.idInTest}`,
+                user_id: userId,
+            },
+        },
+    };
+}
+
+function buildTelegramTextPayload(chatId, userId, text) {
+    return {
+        update_id: randomUpdateId(),
+        message: {
+            message_id: randomMessageId(),
+            date: Math.floor(Date.now() / 1000),
+            chat: {
+                id: chatId,
+                type: 'private',
+            },
+            from: {
+                id: userId,
+                is_bot: false,
+                first_name: `k6-${exec.vu.idInTest}`,
+            },
+            text,
+        },
+    };
+}
+
+function randomUpdateId() {
+    return Number(`${Date.now()}${Math.floor(Math.random() * 1000)}`);
+}
+
+function randomMessageId() {
+    return Number(`${Math.floor(Date.now() / 1000)}${Math.floor(Math.random() * 1000)}`);
 }
 
 function randomDigits(length) {
@@ -667,7 +691,7 @@ export function handleSummary(data) {
         `HTTP Req P99 (ms)   : ${formatTrend(data, 'http_req_duration', 'p(99)')}`,
         `Business Fail Rate  : ${formatRate(data, 'business_failures')}`,
         `Reports Submitted   : ${formatCounter(data, 'reports_submitted')}`,
-        `OTP Requests        : ${formatCounter(data, 'tracking_otp_requests')}`,
+        `Phone Verifications : ${formatCounter(data, 'tracking_phone_verifications')}`,
         `Webhook Calls       : ${formatCounter(data, 'webhook_calls')}`,
     ];
 

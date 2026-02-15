@@ -38,7 +38,7 @@ class ReportHistorySeeder extends Seeder
             'user_id' => $report->user_id,
             'old_value' => null,
             'new_value' => ReportStatus::SUBMITTED->value,
-            'notes' => 'Laporan diterima melalui WhatsApp Bot',
+            'notes' => 'Laporan diterima melalui Telegram Bot',
             'created_at' => $baseTime,
         ]);
 

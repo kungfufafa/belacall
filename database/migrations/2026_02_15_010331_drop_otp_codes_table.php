@@ -6,10 +6,12 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
+    {
+        Schema::dropIfExists('otp_codes');
+    }
+
+    public function down(): void
     {
         Schema::create('otp_codes', function (Blueprint $table) {
             $table->id();
@@ -20,13 +22,5 @@ return new class extends Migration
             $table->unsignedTinyInteger('attempts')->default(0);
             $table->timestamps();
         });
-    }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::dropIfExists('otp_codes');
     }
 };

@@ -131,7 +131,8 @@ class ReportInfolist
                                         TextEntry::make('priority')
                                             ->label('Prioritas')
                                             ->badge()
-                                            ->color(fn (ReportPriority $state): string => self::priorityColor($state)),
+                                            ->color(fn (ReportPriority $state): string => $state->color())
+                                            ->formatStateUsing(fn (ReportPriority $state): string => $state->label()),
                                         TextEntry::make('status')
                                             ->label('Status')
                                             ->badge()
@@ -173,16 +174,6 @@ class ReportInfolist
             \App\Enums\Role::PIMPINAN => 'primary',
             \App\Enums\Role::OPERATOR => 'warning',
             \App\Enums\Role::WARGA => 'gray',
-        };
-    }
-
-    private static function priorityColor(ReportPriority $priority): string
-    {
-        return match ($priority) {
-            ReportPriority::URGENT => 'danger',
-            ReportPriority::HIGH => 'warning',
-            ReportPriority::MEDIUM => 'info',
-            ReportPriority::LOW => 'gray',
         };
     }
 

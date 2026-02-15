@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class RequestTrackingOtpRequest extends FormRequest
+class VerifyTrackingPhoneRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -18,7 +18,7 @@ class RequestTrackingOtpRequest extends FormRequest
     {
         return [
             'ticket' => 'required|string|exists:reports,ticket_number',
-            'phone' => ['required', 'string', 'regex:/^(?:\\+?62|0)8[0-9]{7,11}$/'],
+            'phone' => ['required', 'string', 'regex:/^(?:\+?62|0)8[0-9]{7,11}$/'],
         ];
     }
 
@@ -30,8 +30,8 @@ class RequestTrackingOtpRequest extends FormRequest
         return [
             'ticket.required' => 'Nomor tiket wajib diisi.',
             'ticket.exists' => 'Nomor tiket tidak ditemukan.',
-            'phone.required' => 'Nomor WhatsApp wajib diisi.',
-            'phone.regex' => 'Format nomor WhatsApp tidak valid.',
+            'phone.required' => 'Nomor HP wajib diisi.',
+            'phone.regex' => 'Format nomor HP tidak valid.',
         ];
     }
 }

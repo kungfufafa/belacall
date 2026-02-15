@@ -19,8 +19,8 @@ Project ini sudah punya script load test yang bisa dipakai untuk local, staging,
 ### Jalankan Cepat
 
 ```bash
-# Pastikan local aman (tidak kirim WA ke pihak ketiga)
-# FONNTE_FAKE_MODE=true
+# Pastikan local aman (tidak kirim pesan ke pihak ketiga)
+# TELEGRAM_FAKE_MODE=true
 
 # Local (smoke test)
 ./tests/Load/run-stability.sh http://127.0.0.1:8000 smoke
@@ -57,7 +57,7 @@ Project ini sudah punya script load test yang bisa dipakai untuk local, staging,
 - `BASE_URL`: domain target test.
 - `K6_PROFILE`: `smoke|baseline|stress|soak`.
 - `WEBHOOK_TOKEN`: token untuk endpoint webhook jika aktif.
-- `FONNTE_FAKE_MODE`: set `true` untuk local agar request ke Fonnte tidak dikirim keluar (aman dari spam/ban).
+- `TELEGRAM_FAKE_MODE`: set `true` untuk local agar request ke Telegram tidak dikirim keluar (aman dari spam/ban).
 - `ENABLE_HEALTH_SCENARIO`, `ENABLE_REPORT_SCENARIO`, `ENABLE_TRACKING_SCENARIO`, `ENABLE_WEBHOOK_SCENARIO`: nyalakan/matikan skenario.
 - `HEALTH_RPS`, `REPORT_RPS`, `TRACKING_RPS`, `WEBHOOK_RPS`: override rate per skenario.
 - `K6_DURATION`, `PREALLOCATED_VUS`, `MAX_VUS`: tuning durasi dan virtual users.

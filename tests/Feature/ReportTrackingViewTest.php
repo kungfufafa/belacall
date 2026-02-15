@@ -3,27 +3,16 @@
 namespace Tests\Feature;
 
 use App\Enums\ReportStatus;
-use App\Models\OtpCode;
 use App\Models\Report;
 use App\Models\ReportEvidence;
 use App\Models\ReportHistory;
 use App\Models\User;
-use App\Services\FonnteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ReportTrackingViewTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->mock(FonnteService::class, function ($mock) {
-            $mock->shouldReceive('sendText')->andReturn(true);
-        });
-    }
 
     public function test_tracking_page_shows_submitted_status_label(): void
     {
@@ -39,7 +28,7 @@ class ReportTrackingViewTest extends TestCase
 
         $this->get('/tracking?ticket='.$report->ticket_number)
             ->assertOk()
-            ->assertSee('Verifikasi Nomor WhatsApp')
+            ->assertSee('Verifikasi Nomor HP')
             ->assertDontSee('Masuk');
     }
 
@@ -160,7 +149,7 @@ class ReportTrackingViewTest extends TestCase
             ->assertSee('Ambil Lokasi GPS');
     }
 
-    public function test_request_and_verify_tracking_otp_grants_access(): void
+    public function test_verify_phone_grants_tracking_access(): void
     {
         $reporter = User::factory()->create([
             'phone' => '628123456003',
@@ -172,21 +161,9 @@ class ReportTrackingViewTest extends TestCase
             'status' => ReportStatus::SUBMITTED,
         ]);
 
-        $requestResponse = $this->post(route('report.tracking.request_otp'), [
+        $verifyResponse = $this->post(route('report.tracking.verify_phone'), [
             'ticket' => $report->ticket_number,
             'phone' => '08123456003',
-        ]);
-
-        $requestResponse->assertRedirect(route('report.tracking.view', ['ticket' => $report->ticket_number]));
-        $requestResponse->assertSessionHas('success');
-
-        $otp = OtpCode::query()->where('phone', $reporter->phone)->latest()->first();
-        $this->assertNotNull($otp);
-
-        $verifyResponse = $this->post(route('report.tracking.verify_otp'), [
-            'ticket' => $report->ticket_number,
-            'phone' => '08123456003',
-            'otp' => $otp->code,
         ]);
 
         $verifyResponse->assertRedirect(route('report.tracking.view', ['ticket' => $report->ticket_number]));
@@ -195,10 +172,10 @@ class ReportTrackingViewTest extends TestCase
         $this->get('/tracking?ticket='.$report->ticket_number)
             ->assertOk()
             ->assertSee('Masuk')
-            ->assertDontSee('Verifikasi Nomor WhatsApp');
+            ->assertDontSee('Verifikasi Nomor HP');
     }
 
-    public function test_request_tracking_otp_rejected_for_mismatched_phone(): void
+    public function test_verify_phone_rejected_for_mismatched_phone(): void
     {
         $reporter = User::factory()->create([
             'phone' => '628123456004',
@@ -210,14 +187,13 @@ class ReportTrackingViewTest extends TestCase
             'status' => ReportStatus::SUBMITTED,
         ]);
 
-        $response = $this->post(route('report.tracking.request_otp'), [
+        $response = $this->post(route('report.tracking.verify_phone'), [
             'ticket' => $report->ticket_number,
             'phone' => '081200000000',
         ]);
 
         $response->assertRedirect(route('report.tracking.view', ['ticket' => $report->ticket_number]));
         $response->assertSessionHas('error');
-        $this->assertDatabaseCount('otp_codes', 0);
     }
 
     /**

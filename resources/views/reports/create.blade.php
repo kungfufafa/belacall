@@ -13,7 +13,7 @@
 
             <!-- Judul -->
             <div>
-                <label for="title" class="text-sm font-medium text-gray-700">Judul Laporan</label>
+                <label for="title" class="text-sm font-medium text-gray-700">Judul Laporan <span class="text-red-500">*</span></label>
                 <input type="text" name="title" id="title" 
                     class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
                     placeholder="Apa yang ingin Anda laporkan?" required>
@@ -21,7 +21,7 @@
 
             <!-- Isi Laporan -->
             <div>
-                <label for="description" class="text-sm font-medium text-gray-700">Detail Laporan</label>
+                <label for="description" class="text-sm font-medium text-gray-700">Detail Laporan <span class="text-red-500">*</span></label>
                 <textarea name="description" id="description" rows="5" 
                     class="mt-1.5 flex w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium resize-none"
                     placeholder="Jelaskan detail kejadian secara lengkap..." required></textarea>
@@ -30,7 +30,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Lokasi -->
                 <div class="space-y-2">
-                    <label for="location_name" class="text-sm font-medium text-gray-700">Lokasi Kejadian</label>
+                    <label for="location_name" class="text-sm font-medium text-gray-700">Lokasi Kejadian <span class="text-red-500">*</span></label>
                     <input type="text" name="location_name" id="location_name" required 
                         class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
                         placeholder="Nama jalan atau patokan">
@@ -38,7 +38,7 @@
 
                 <!-- Nomor WA -->
                 <div>
-                    <label for="phone" class="text-sm font-medium text-gray-700">Nomor WhatsApp</label>
+                    <label for="phone" class="text-sm font-medium text-gray-700">Nomor Telegram <span class="text-red-500">*</span></label>
                     <input type="tel" name="phone" id="phone" required 
                         class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
                         placeholder="Contoh: 08123456789">
@@ -60,28 +60,28 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="latitude" class="text-sm font-medium text-gray-700">Latitude</label>
-                        <input type="number" name="latitude" id="latitude" step="any"
-                            class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
+                        <input type="text" name="latitude" id="latitude" readonly
+                            class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-sm placeholder:text-gray-400 cursor-not-allowed transition-all font-medium"
                             placeholder="-6.200000">
                     </div>
 
                     <div>
                         <label for="longitude" class="text-sm font-medium text-gray-700">Longitude</label>
-                        <input type="number" name="longitude" id="longitude" step="any"
-                            class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium"
+                        <input type="text" name="longitude" id="longitude" readonly
+                            class="mt-1.5 flex h-10 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-sm placeholder:text-gray-400 cursor-not-allowed transition-all font-medium"
                             placeholder="106.800000">
                     </div>
                 </div>
 
-                <p id="gps-status" class="text-xs text-gray-500">Isi manual jika diperlukan.</p>
+                <p id="gps-status" class="text-xs text-gray-500">Gunakan tombol di atas untuk mengisi otomatis.</p>
             </div>
 
             <!-- Bukti Foto -->
             <div>
-                <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto (Opsional)</label>
+                <label for="evidence" class="text-sm font-medium text-gray-700">Bukti Foto <span class="text-red-500">*</span></label>
                 <div id="upload-zone" class="mt-1.5 flex justify-center rounded-xl border-2 border-dashed border-gray-300 px-6 py-8 transition-all hover:bg-green-50/50 hover:border-green-400 cursor-pointer">
                     <div class="text-center relative w-full">
-                        <input id="evidence" name="evidence" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        <input id="evidence" name="evidence" type="file" accept="image/*" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                         
                         <!-- Preview Container (hidden by default) -->
                         <div id="preview-container" class="hidden">

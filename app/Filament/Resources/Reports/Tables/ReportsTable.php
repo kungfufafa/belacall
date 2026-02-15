@@ -41,12 +41,8 @@ class ReportsTable
                 TextColumn::make('priority')
                     ->label('Prioritas')
                     ->badge()
-                    ->color(fn (ReportPriority $state): string => match ($state) {
-                        ReportPriority::URGENT => 'danger',
-                        ReportPriority::HIGH => 'warning',
-                        ReportPriority::MEDIUM => 'info',
-                        ReportPriority::LOW => 'gray',
-                    }),
+                    ->color(fn (ReportPriority $state): string => $state->color())
+                    ->formatStateUsing(fn (ReportPriority $state): string => $state->label()),
                 TextColumn::make('location_name')
                     ->label('Lokasi')
                     ->searchable(),

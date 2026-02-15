@@ -41,7 +41,7 @@ class AdminPanelRoleAccessTest extends TestCase
                 ->assertSee('Panduan Peran Pelaporan Warga')
                 ->assertSee('Lurah/Pimpinan')
                 ->assertSee('Operator/Petugas')
-                ->assertSee('WhatsApp Fonnte');
+                ->assertSee('Telegram Bot');
         }
 
         $warga = User::factory()->create(['role' => Role::WARGA]);

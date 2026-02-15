@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -23,18 +22,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        RateLimiter::for('fonnte-webhook', function (Request $request): array {
-            $normalizedSender = User::normalizePhoneNumber((string) $request->input('sender'));
-            $senderKey = $normalizedSender !== null
-                ? 'fonnte-sender:'.$normalizedSender
-                : 'fonnte-ip:'.$request->ip();
+        \App\Models\Report::observe(\App\Observers\ReportObserver::class);
 
-            $perSender = max(10, (int) config('services.fonnte.rate_limit_per_minute', 40));
-            $global = max(100, (int) config('services.fonnte.global_rate_limit_per_minute', 1200));
+        RateLimiter::for('telegram-webhook', function (Request $request): array {
+            $chatId = (string) data_get($request->all(), 'message.chat.id', '');
+            $senderKey = $chatId !== ''
+                ? 'telegram-chat:'.$chatId
+                : 'telegram-ip:'.$request->ip();
+
+            $perSender = max(10, (int) config('services.telegram.rate_limit_per_minute', 40));
+            $global = max(100, (int) config('services.telegram.global_rate_limit_per_minute', 1200));
 
             return [
                 Limit::perMinute($perSender)->by($senderKey),
-                Limit::perMinute($global)->by('fonnte-global'),
+                Limit::perMinute($global)->by('telegram-global'),
             ];
         });
     }
