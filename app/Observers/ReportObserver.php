@@ -3,8 +3,11 @@
 namespace App\Observers;
 
 use App\Enums\ReportStatus;
+use App\Enums\Role;
 use App\Models\Report;
 use App\Models\SlaConfig;
+use App\Models\User;
+use App\Notifications\ReportSubmittedForTriage;
 
 class ReportObserver
 {
@@ -12,6 +15,24 @@ class ReportObserver
     {
         // Do not set deadlines on create - priority is NULL until pimpinan assigns operator
         // Deadlines will be set when priority is first assigned
+    }
+
+    public function created(Report $report): void
+    {
+        $status = $report->status instanceof ReportStatus
+            ? $report->status
+            : ReportStatus::tryFrom((string) $report->status);
+
+        if ($status !== ReportStatus::SUBMITTED || $report->assignee_id !== null) {
+            return;
+        }
+
+        User::query()
+            ->where('role', Role::PIMPINAN)
+            ->get()
+            ->each(function (User $pimpinan) use ($report): void {
+                $pimpinan->notify(new ReportSubmittedForTriage($report));
+            });
     }
 
     public function updating(Report $report): void

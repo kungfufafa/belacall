@@ -6,8 +6,10 @@ use App\Enums\ReportStatus;
 use App\Enums\Role;
 use App\Models\BotSession;
 use App\Models\User;
+use App\Notifications\ReportSubmittedForTriage;
 use App\Services\TelegramService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -291,6 +293,25 @@ class TelegramWebhookTest extends TestCase
             })
             ->atLeast()
             ->once();
+    }
+
+    public function test_it_notifies_pimpinan_when_report_is_created_from_telegram(): void
+    {
+        Notification::fake();
+
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+        $admin = User::factory()->create(['role' => Role::ADMIN]);
+
+        $this->createSessionWithPhone('12345', '628123456789', 'WAITING_DESCRIPTION', [
+            'session_started_at' => now()->toIso8601String(),
+            'title' => 'Jembatan retak',
+        ]);
+
+        $this->postJson(route('webhook.telegram'), $this->telegramPayload('12345', 'Struktur jembatan retak dan membahayakan pengguna.'))
+            ->assertStatus(200);
+
+        Notification::assertSentTo($pimpinan, ReportSubmittedForTriage::class);
+        Notification::assertNotSentTo($admin, ReportSubmittedForTriage::class);
     }
 
     public function test_it_rejects_webhook_when_secret_is_invalid(): void

@@ -40,6 +40,14 @@ class ReportResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Filament::auth()->user();
 
+        if ($user?->role === Role::ADMIN) {
+            $query->where(function (Builder $builder): void {
+                $builder
+                    ->where('status', '!=', ReportStatus::SUBMITTED->value)
+                    ->orWhereNotNull('assignee_id');
+            });
+        }
+
         if ($user?->role === Role::OPERATOR) {
             $query->where('assignee_id', $user->id);
         }
@@ -91,7 +99,7 @@ class ReportResource extends Resource
     {
         $user = Filament::auth()->user();
 
-        return $user && in_array($user->role, [Role::ADMIN, Role::PIMPINAN], true);
+        return $user?->role === Role::PIMPINAN;
     }
 
     /**

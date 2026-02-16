@@ -107,7 +107,7 @@ class DashboardPimpinan extends Page
             ->with(['user', 'assignee'])
             ->whereNull('assignee_id')
             ->where('status', ReportStatus::SUBMITTED->value)
-            ->oldest('created_at')
+            ->latest('created_at')
             ->limit(8)
             ->get()
             ->map(fn (Report $report): array => $this->mapReport($report, includeAge: true))

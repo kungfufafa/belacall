@@ -1,4 +1,4 @@
-<x-filament-panels::page>
+<x-filament-panels::page wire:poll.30s>
     <div class="grid gap-6">
         <x-filament::section>
             <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">

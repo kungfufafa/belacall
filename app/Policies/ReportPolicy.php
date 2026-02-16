@@ -26,6 +26,10 @@ class ReportPolicy
             return $report->assignee_id === $user->id;
         }
 
+        if ($this->isAdmin($user) && $this->isWaitingPimpinanTriage($report)) {
+            return false;
+        }
+
         return $this->canMonitorReports($user);
     }
 
@@ -55,6 +59,10 @@ class ReportPolicy
             return false;
         }
 
+        if ($report->assignee_id === null) {
+            return $user->role === Role::PIMPINAN;
+        }
+
         return in_array($user->role, [Role::ADMIN, Role::PIMPINAN], true);
     }
 
@@ -69,6 +77,10 @@ class ReportPolicy
         }
 
         if ($this->isAdmin($user)) {
+            if ($this->isWaitingPimpinanTriage($report)) {
+                return false;
+            }
+
             return true;
         }
 
@@ -115,6 +127,15 @@ class ReportPolicy
     private function canMonitorReports(User $user): bool
     {
         return in_array($user->role, [Role::ADMIN, Role::OPERATOR, Role::PIMPINAN], true);
+    }
+
+    private function isWaitingPimpinanTriage(Report $report): bool
+    {
+        $status = $report->status instanceof ReportStatus
+            ? $report->status->value
+            : (string) $report->status;
+
+        return $status === ReportStatus::SUBMITTED->value && $report->assignee_id === null;
     }
 
     private function isAdmin(User $user): bool

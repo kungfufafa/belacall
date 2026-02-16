@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Enums\ReportStatus;
+use App\Enums\Role;
 use App\Models\Report;
+use App\Models\User;
+use App\Notifications\ReportSubmittedForTriage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -116,5 +120,27 @@ class WebReportSubmissionTest extends TestCase
             'evidence',
         ]);
         $this->assertDatabaseCount('reports', 0);
+    }
+
+    public function test_report_submission_notifies_pimpinan_for_triage_not_admin(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+        Notification::fake();
+
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+        $admin = User::factory()->create(['role' => Role::ADMIN]);
+
+        $response = $this->post('/lapor', [
+            'title' => 'Drainase tersumbat',
+            'description' => 'Saluran air tersumbat dan meluap ke jalan kampung.',
+            'phone' => '081299900011',
+            'location_name' => 'RT 03 / RW 01',
+            'evidence' => UploadedFile::fake()->image('drainase.jpg'),
+        ]);
+
+        $response->assertRedirect();
+        Notification::assertSentTo($pimpinan, ReportSubmittedForTriage::class);
+        Notification::assertNotSentTo($admin, ReportSubmittedForTriage::class);
     }
 }

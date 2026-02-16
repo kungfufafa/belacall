@@ -193,10 +193,52 @@ class AdminPanelRoleAccessTest extends TestCase
             ->assertDontSee($assignedSubmittedReport->ticket_number);
     }
 
+    public function test_pimpinan_backlog_prioritizes_latest_submitted_reports(): void
+    {
+        $pimpinan = User::factory()->create(['role' => Role::PIMPINAN]);
+
+        $oldestReport = null;
+
+        for ($index = 0; $index < 9; $index++) {
+            $report = Report::factory()->create([
+                'assignee_id' => null,
+                'status' => ReportStatus::SUBMITTED,
+                'priority' => null,
+                'created_at' => now()->subDays(20 - $index),
+                'updated_at' => now()->subDays(20 - $index),
+            ]);
+
+            if ($index === 0) {
+                $oldestReport = $report;
+            }
+        }
+
+        $latestReport = Report::factory()->create([
+            'assignee_id' => null,
+            'status' => ReportStatus::SUBMITTED,
+            'priority' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertNotNull($oldestReport);
+
+        $this->actingAs($pimpinan)
+            ->get(DashboardPimpinan::getUrl())
+            ->assertOk()
+            ->assertSee($latestReport->ticket_number)
+            ->assertDontSee($oldestReport->ticket_number);
+    }
+
     public function test_admin_can_manage_users_and_reports(): void
     {
         $admin = User::factory()->create(['role' => Role::ADMIN]);
-        $report = Report::factory()->create();
+        $operator = User::factory()->create(['role' => Role::OPERATOR]);
+        $report = Report::factory()->create([
+            'assignee_id' => $operator->id,
+            'status' => ReportStatus::VERIFIED,
+            'priority' => ReportPriority::MEDIUM,
+        ]);
 
         $this->actingAs($admin);
 
@@ -206,6 +248,32 @@ class AdminPanelRoleAccessTest extends TestCase
 
         Livewire::test(ViewReport::class, ['record' => $report->id])
             ->assertActionHasColor('edit', 'warning');
+    }
+
+    public function test_admin_cannot_access_unassigned_submitted_reports_in_triage_queue(): void
+    {
+        $admin = User::factory()->create(['role' => Role::ADMIN]);
+        $operator = User::factory()->create(['role' => Role::OPERATOR]);
+        $triageReport = Report::factory()->create([
+            'assignee_id' => null,
+            'status' => ReportStatus::SUBMITTED,
+            'priority' => null,
+        ]);
+        $assignedReport = Report::factory()->create([
+            'assignee_id' => $operator->id,
+            'status' => ReportStatus::VERIFIED,
+            'priority' => ReportPriority::HIGH,
+        ]);
+
+        $this->actingAs($admin);
+
+        $this->get(ReportResource::getUrl('index'))
+            ->assertOk()
+            ->assertSee($assignedReport->ticket_number)
+            ->assertDontSee($triageReport->ticket_number);
+
+        $this->get(ReportResource::getUrl('view', ['record' => $triageReport]))
+            ->assertNotFound();
     }
 
     public function test_user_resource_actions_use_slideover_modals(): void
