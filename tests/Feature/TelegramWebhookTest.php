@@ -275,7 +275,7 @@ class TelegramWebhookTest extends TestCase
             'latitude' => -6.200000,
             'longitude' => 106.816666,
             'status' => ReportStatus::SUBMITTED->value,
-            'priority' => 'Medium',
+            'priority' => null,
         ]);
 
         $this->assertDatabaseHas('bot_sessions', [
@@ -380,7 +380,7 @@ class TelegramWebhookTest extends TestCase
             'user_id' => $user->id,
             'title' => 'Jalan rusak',
             'status' => ReportStatus::SUBMITTED->value,
-            'priority' => 'Medium',
+            'priority' => null,
             'location_name' => 'Koordinat: -6.210000, 106.820000',
         ]);
     }
