@@ -250,7 +250,7 @@ class AdminPanelRoleAccessTest extends TestCase
             ->assertActionHasColor('edit', 'warning');
     }
 
-    public function test_admin_cannot_access_unassigned_submitted_reports_in_triage_queue(): void
+    public function test_admin_can_access_all_reports_including_unassigned_submitted(): void
     {
         $admin = User::factory()->create(['role' => Role::ADMIN]);
         $operator = User::factory()->create(['role' => Role::OPERATOR]);
@@ -270,10 +270,10 @@ class AdminPanelRoleAccessTest extends TestCase
         $this->get(ReportResource::getUrl('index'))
             ->assertOk()
             ->assertSee($assignedReport->ticket_number)
-            ->assertDontSee($triageReport->ticket_number);
+            ->assertSee($triageReport->ticket_number);
 
         $this->get(ReportResource::getUrl('view', ['record' => $triageReport]))
-            ->assertNotFound();
+            ->assertOk();
     }
 
     public function test_user_resource_actions_use_slideover_modals(): void
